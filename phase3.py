@@ -223,9 +223,19 @@ def parse_Register(rspec):
 
     return Register(name = register_name, meta = register_meta, header = register_header, bits = bits)
 
-re_N_unicode_range = re.compile(r"N\s*=\s([0-9])+–([0-9]+)")
-re_N_to = re.compile(r"N\s*=\s([0-9]+) to ([0-9]+)")
+re_N_unicode_range = re.compile(r"N\s*=\s*([0-9])+–([0-9]+)")
+re_N_to = re.compile(r"N\s*=\s*([0-9]+) to ([0-9]+)")
 re_n_lt = re.compile(r"([0-9]+)<n<([0-9]+)")
+re_n_le_lt = re.compile(r"([0-9]+)≤n<([0-9]+)")
+
+def parse_Offset(spec):
+    register_offset = spec
+    register_offset = re_N_unicode_range.sub(lambda match: "N={}~{}".format(match.group(1), match.group(2)), register_offset)
+    register_offset = re_N_to.sub(lambda match: "N={}~{}".format(match.group(1), match.group(2)), register_offset)
+    register_offset = re_n_lt.sub(lambda match: "n={}~{}".format(int(match.group(1)) + 1, int(match.group(2))) - 1, register_offset)
+    register_offset = re_n_le_lt.sub(lambda match: "n={}~{}".format(int(match.group(1)), int(match.group(2))) - 1, register_offset)
+    register_offset = eval(register_offset[len("Offset:"):].strip())
+    return register_offset
 
 for module, rspecs in registers.items():
   module = eval(module)
@@ -246,14 +256,12 @@ for module, rspecs in registers.items():
       assert len(register.meta) == 1
       register_offset = register.meta[0]
       assert(register_offset.startswith("Offset:"))
-      register_offset = register_offset.replace("0≤n<9", "N=0~8")
-      register_offset = re_N_unicode_range.sub(lambda match: "N={}~{}".format(match.group(1), match.group(2)), register_offset)
-      register_offset = re_N_to.sub(lambda match: "N={}~{}".format(match.group(1), match.group(2)), register_offset)
-      register_offset = re_n_lt.sub(lambda match: "N={}~{}".format(int(match.group(1)) + 1, int(match.group(2))) - 1, register_offset)
       try:
-          register_offset = eval(register_offset[len("Offset:"):].strip())
+          register_offset = parse_Offset(register_offset)
       except (SyntaxError, NameError):
           warning("Offset is too complicated: {!r}".format(register_offset))
+          import traceback
+          traceback.print_exc()
           register_offset = 42 # FIXME
       svd_register = create_register(register, register.name, register_offset, description=None) # FIXME: description
       svd_registers.append(svd_register)
