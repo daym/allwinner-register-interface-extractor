@@ -121,7 +121,7 @@ def create_peripheral(name, baseAddress, access="read-write", description=None, 
   result.append(text_element("name", name))
   result.append(text_element("description", description or name))
   result.append(text_element("groupName", groupName or "generic"))
-  result.append(text_element("baseAddress", baseAddress))
+  result.append(text_element("baseAddress", "0x{:X}".format(baseAddress)))
   result.append(text_element("access", access))
   return result
 
