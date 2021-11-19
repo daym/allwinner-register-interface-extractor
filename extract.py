@@ -46,6 +46,7 @@ class State(object):
     self.table_columns = []
     self.table_left = 0
     self.offset = None
+    self.in_offset = False
   def start_table(self, rname):
       self.finish_this_table()
       print()
@@ -57,13 +58,19 @@ class State(object):
       self.in_table_header = True
   def finish_this_table(self):
     if self.in_table:
+      assert not self.in_offset, self.in_table
       print("]]")
       print()
       self.in_table = False
   def process_text(self, text, attrib, xx):
+    text = text.replace("Offset :0x", "Offset: 0x")
     #print(">" + text + "<")
     # Fix typo
-    text = text.replace("Offset :0x", "Offset: 0x")
+    if self.in_offset:
+      if text.startswith("Register Name:"):
+          self.in_offset = False
+      else:
+          self.offset = "{} {}".format(self.offset, text)
     if text.strip().startswith("Copyright©Allwinner Technology") or text.strip().startswith("Copyright© 2021 Allwinner Technology"):
       return
     if attrib["meaning"] == "h0" and xx == {"b"}: # and text == "Contents"
@@ -73,6 +80,7 @@ class State(object):
     if attrib["meaning"] == "h2" and xx == {"b"}:
       self.finish_this_table()
     if attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Offset:"):
+      self.in_offset = True
       self.offset = text.strip().replace("Offset:", "").strip() # FIXME: append
       # TODO: It could have parts between "Offset:" and "Register Name:"
       return
