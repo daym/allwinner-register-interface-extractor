@@ -197,7 +197,10 @@ def parse_Register(rspec):
             s = register_field[-1]
             del register_field[-1]
             register_field[-1] = register_field[-1] + " " + s
-        bitrange, access, q, description = register_field
+        bitrange, access, default_value, description = register_field
+        if access.strip() == "/": # no access
+            info("{!r}: Field {!r} cannot be accessed".format(register_name, register_field))
+            continue
         # FIXME handle q
         # target  for (max_bit, min_bit), name, description in bits:
         parts = bitrange.split(":")
