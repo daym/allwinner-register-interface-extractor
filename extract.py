@@ -16,6 +16,7 @@ fontspec_to_meaning = [
   ({'color': '#000000', 'family': 'Arial', 'size': '15'}, "h4"), # "0x0000 PLL_CPU Control Register (Default Value: 0x4A00_1000)"
   ({'color': '#0000ff', 'family': 'ABCDEE+Calibri', 'size': '15'}, "table-cell"), # really a register reference--but we don't care
   ({'color': '#000000', 'family': 'ABCDEE+Calibri', 'size': '15'}, "table-cell"),
+  ({'color': '#000000', 'family': 'ABCDEE+Calibri', 'size': '13'}, "table-cell"), # used once
   ({'color': '#000000', 'family': 'Calibri', 'size': '120'}, "garbage"),
 #  ({}, ""),
 ]
@@ -154,7 +155,7 @@ class State(object):
         else:
           print("{!r}, ".format(text))
       else:
-        print("# ??? {}".format(text))
+        print("# ??? {} {!r}".format(text, attrib))
 
 def hashable_fontspec(d):
   result = tuple(sorted(d.items()))
