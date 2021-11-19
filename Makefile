@@ -17,4 +17,5 @@ clean:
 	rm -rf partsvol1
 
 distclean: clean
+	rm -f phase3_host.py
 	rm -f phase2_result.py
