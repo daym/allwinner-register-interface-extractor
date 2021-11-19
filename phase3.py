@@ -206,7 +206,7 @@ def parse_Register(rspec):
         parts = bitrange.split(":")
         if len(parts) == 2:
             max_bit, min_bit = parts
-        elif len(parts) != -1:
+        elif len(parts) != 1:
             warning("Field could not be parsed as a bitrange: {!r}".format(parts))
             continue
         else:
