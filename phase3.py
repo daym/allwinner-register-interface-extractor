@@ -225,6 +225,7 @@ def parse_Register(rspec):
 
 re_N_unicode_range = re.compile(r"([0-9])+–([0-9]+)")
 re_N_to = re.compile(r"N\s*=\s*([0-9]+) to ([0-9]+)")
+re_n_lt = re.compile(r"([0-9]+)<n<([0-9]+)")
 
 for module, rspecs in registers.items():
   module = eval(module)
@@ -247,7 +248,8 @@ for module, rspecs in registers.items():
       assert(register_offset.startswith("Offset:"))
       register_offset = register_offset.replace("0≤n<9", "N=0~8")
       register_offset = re_N_unicode_range.sub(lambda match: "1~3".format(match.group(1), match.group(2)), register_offset)
-      register_offset = re_N_to.sub(lambda match: "1~3".format(match.group(1), match.group(2)), register_offset)
+      register_offset = re_N_to.sub(lambda match: "{}~{}".format(match.group(1), match.group(2)), register_offset)
+      register_offset = re_n_lt.sub(lambda match: "{}~{}".format(match.group(1), match.group(2)), register_offset)
       try:
           register_offset = eval(register_offset[len("Offset:"):].strip())
       except (SyntaxError, NameError):
