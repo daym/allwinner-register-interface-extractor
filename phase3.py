@@ -211,7 +211,12 @@ def parse_Register(rspec):
             continue
         else:
             max_bit, min_bit = parts[0], parts[0]
-        name = "FIXME"
+        if description:
+            name = description.split()[0] or "FIXME"
+        else:
+            name = "FIXME"
+        if name == "FIXME":
+            warning("{!r}: Field name could not be determined: {!r}".format(register_name, register_field))
         bits.append(((max_bit, min_bit), name, description))
 
     return Register(name = register_name, meta = register_meta, header = register_header, bits = bits)
