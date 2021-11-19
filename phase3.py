@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
+# -*- encoding: utf-8 -*-
 
+import re
 import sys
 from logging import debug, info, warning, error, critical
 import logging
@@ -221,6 +223,9 @@ def parse_Register(rspec):
 
     return Register(name = register_name, meta = register_meta, header = register_header, bits = bits)
 
+re_N_unicode_range = re.compile(r"([0-9])+–([0-9]+)")
+re_N_to = re.compile(r"N\s*=\s*([0-9]+) to ([0-9]+)")
+
 for module, rspecs in registers.items():
   module = eval(module)
   if len(module) > 1:
@@ -240,6 +245,9 @@ for module, rspecs in registers.items():
       assert len(register.meta) == 1
       register_offset = register.meta[0]
       assert(register_offset.startswith("Offset:"))
+      register_offset = register_offset.replace("0≤n<9", "N=0~8")
+      register_offset = re_N_unicode_range.sub(lambda match: "1~3".format(match.group(1), match.group(2)), register_offset)
+      register_offset = re_N_to.sub(lambda match: "1~3".format(match.group(1), match.group(2)), register_offset)
       try:
           register_offset = eval(register_offset[len("Offset:"):].strip())
       except (SyntaxError, NameError):
