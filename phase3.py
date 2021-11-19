@@ -239,15 +239,18 @@ def parse_Offset(spec):
 
 for module, rspecs in registers.items():
   module = eval(module, {})
-  if len(module) > 1:
-      warning("Module has too many parts (not implemented): {!r}".format(module))
-      continue
-  assert len(module) == 1, module
-  module_name, module_baseAddress = list(module.items())[0]
+  peripherals = sorted(module.items())
+  module_name, module_baseAddress = peripherals[0]
+
   #print("MOD {}: ".format(module), end=" QQ ")
   #print()
   svd_peripheral = create_peripheral(module_name, module_baseAddress, access="read-write", description=None, groupName=None) # FIXME ??
   svd_peripherals.append(svd_peripheral)
+  for x_module_name, x_module_baseAddress in peripherals[1:]:
+    svd_x_peripheral = create_peripheral(x_module_name, x_module_baseAddress, access="read-write", description=None, groupName=None) # FIXME ??
+    svd_x_peripheral.attrib["derivedFrom"] = module_name
+    svd_peripherals.append(svd_x_peripheral)
+
   svd_registers = etree.Element("registers")
   svd_peripheral.append(svd_registers)
 
