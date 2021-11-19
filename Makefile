@@ -10,7 +10,7 @@ partsvol1/a.xml: $(PPRVOL1)
 phase2_result.py: partsvol1/a.xml extract.py
 	./extract.py $< > "$@".new && mv "$@".new "$@"
 
-phase3_host.svd: phase2_result.py
+phase3_host.svd: phase2_result.py phase3.py
 	python3 phase3.py $< >$@.new && mv $@.new $@
 
 clean:
