@@ -262,15 +262,18 @@ for module, rspecs in registers.items():
           nN_match = re_nN_tilde.search(register_offset)
           if nN_match:
               before_part, loop_var, loop_min, loop_max, after_part = re_nN_tilde.split(register_offset)
+              loop_min = int(loop_min)
+              loop_max = int(loop_max)
               register_offset = before_part
               if (common_loop_var, common_loop_min, common_loop_max) == (None, None, None):
                   common_loop_var, common_loop_min, common_loop_max = loop_var, loop_min, loop_max
               if (common_loop_var, common_loop_min, common_loop_max) != (loop_var, loop_min, loop_max):
                   warning("{!r}: Inconsistent peripheral array (skipping the entire thing): ({!r}, {!r}, {!r}) vs ({!r}, {!r}, {!r})".format(register.name, loop_var, loop_min, loop_max, common_loop_var, common_loop_min, common_loop_max))
                   continue
+          else:
+              loop_min = 0
+              loop_max = 0
           # Note: can contain N, n
-          loop_min = int(loop_min)
-          loop_max = int(loop_max)
           spec = register_offset
           for N in range(loop_min, loop_max + 1):
               register_offset = eval(spec[len("Offset:"):].strip(), {"n": N, "N": N})
