@@ -58,7 +58,7 @@ def unroll_instances(module):
   #print("BODY", body)
   for Module_Name, Base_Address in body:
     Module_Name = Module_Name.strip()
-    Base_Address = eval(Base_Address.strip())
+    Base_Address = eval(Base_Address.strip(), {})
     yield Module_Name, Base_Address
   #assert len(body) == 1, (header, body)
   # AssertionError: (['Module_Name', 'Base_Address'], [['I2S/PCM0 ', '0x02032000 '], ['I2S/PCM1 ', '0x02033000 '], ['I2S/PCM2 ', '0x02034000   ', ' ']])
@@ -227,18 +227,18 @@ re_N_unicode_range = re.compile(r"N\s*=\s*([0-9])+–([0-9]+)")
 re_N_to = re.compile(r"N\s*=\s*([0-9]+) to ([0-9]+)")
 re_n_lt = re.compile(r"([0-9]+)<n<([0-9]+)")
 re_n_le_lt = re.compile(r"([0-9]+)≤n<([0-9]+)")
+re_nN_tilde = re.compile(r"[(]([Nn])=([0-9]+)~([0-9]+)[)]")
 
 def parse_Offset(spec):
     register_offset = spec
     register_offset = re_N_unicode_range.sub(lambda match: "N={}~{}".format(match.group(1), match.group(2)), register_offset)
     register_offset = re_N_to.sub(lambda match: "N={}~{}".format(match.group(1), match.group(2)), register_offset)
-    register_offset = re_n_lt.sub(lambda match: "n={}~{}".format(int(match.group(1)) + 1, int(match.group(2))) - 1, register_offset)
-    register_offset = re_n_le_lt.sub(lambda match: "n={}~{}".format(int(match.group(1)), int(match.group(2))) - 1, register_offset)
-    register_offset = eval(register_offset[len("Offset:"):].strip())
+    register_offset = re_n_lt.sub(lambda match: "n={}~{}".format(int(match.group(1)) + 1, int(match.group(2)) - 1), register_offset)
+    register_offset = re_n_le_lt.sub(lambda match: "n={}~{}".format(int(match.group(1)), int(match.group(2)) - 1), register_offset)
     return register_offset
 
 for module, rspecs in registers.items():
-  module = eval(module)
+  module = eval(module, {})
   if len(module) > 1:
       warning("Module has too many parts (not implemented): {!r}".format(module))
       continue
@@ -251,6 +251,7 @@ for module, rspecs in registers.items():
   svd_registers = etree.Element("registers")
   svd_peripheral.append(svd_registers)
 
+  common_loop_var, common_loop_min, common_loop_max = None, None, None
   registers = [parse_Register(rspec) for rspec in rspecs]
   for register in registers:
       assert len(register.meta) == 1
@@ -258,11 +259,26 @@ for module, rspecs in registers.items():
       assert(register_offset.startswith("Offset:"))
       try:
           register_offset = parse_Offset(register_offset)
-      except (SyntaxError, NameError):
+          nN_match = re_nN_tilde.search(register_offset)
+          if nN_match:
+              before_part, loop_var, loop_min, loop_max, after_part = re_nN_tilde.split(register_offset)
+              register_offset = before_part
+              if (common_loop_var, common_loop_min, common_loop_max) == (None, None, None):
+                  common_loop_var, common_loop_min, common_loop_max = loop_var, loop_min, loop_max
+              if (common_loop_var, common_loop_min, common_loop_max) != (loop_var, loop_min, loop_max):
+                  warning("{!r}: Inconsistent peripheral array (skipping the entire thing): ({!r}, {!r}, {!r}) vs ({!r}, {!r}, {!r})".format(register.name, loop_var, loop_min, loop_max, common_loop_var, common_loop_min, common_loop_max))
+                  continue
+          # Note: can contain N, n
+          loop_min = int(loop_min)
+          loop_max = int(loop_max)
+          spec = register_offset
+          for N in range(loop_min, loop_max + 1):
+              register_offset = eval(spec[len("Offset:"):].strip(), {"n": N, "N": N})
+      except (SyntaxError, NameError, TypeError):
           warning("Offset is too complicated: {!r}".format(register_offset))
           import traceback
           traceback.print_exc()
-          register_offset = 42 # FIXME
+          continue
       svd_register = create_register(register, register.name, register_offset, description=None) # FIXME: description
       svd_registers.append(svd_register)
 
