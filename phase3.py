@@ -236,6 +236,7 @@ def parse_Register(rspec):
                 continue
         if description:
             name = description.split()[0] or "FIXME"
+            name = name.rstrip(".").rstrip()
         else:
             name = "FIXME"
         if name == "FIXME":
