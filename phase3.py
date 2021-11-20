@@ -239,8 +239,9 @@ def parse_Register(rspec):
             name = name.rstrip(".").rstrip()
         else:
             name = "FIXME"
-        if name == "FIXME":
+        if name == "FIXME" or not name or name.strip() == "/":
             warning("{!r}: Field name could not be determined: {!r}".format(register_name, register_field))
+            continue
         bits.append(((max_bit, min_bit), name, description))
 
     return Register(name = register_name, meta = register_meta, header = register_header, bits = bits)
