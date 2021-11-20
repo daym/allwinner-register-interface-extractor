@@ -190,6 +190,12 @@ from collections import namedtuple
 Register = namedtuple("Register", ["name", "meta", "header", "bits"])
 def parse_Register(rspec):
     register_name, (register_meta, register_header), register_fields = rspec
+    if register_header != ['Bit', 'Read/Write', 'Default/Hex', 'Description']:
+        if register_header == ['Bit', 'Read/Write', 'Default/Hex', 'Description', 'HCD', 'HC']:
+            pass
+        else:
+            warning("{!r}: Unknown 'register' header {!r}".format(register_name, register_header))
+            return None
     bits = []
     for register_field in register_fields:
         # FIELD ['3 ', 'R/W ', '0x0 ', 'RMD_EN  Ramp Manual Down Enable  0: Disabled  1: Enabled ']
@@ -255,7 +261,7 @@ for module, rspecs in registers.items():
   svd_peripheral.append(svd_registers)
 
   common_loop_var, common_loop_min, common_loop_max = None, None, None
-  registers = [parse_Register(rspec) for rspec in rspecs]
+  registers = [x for x in [parse_Register(rspec) for rspec in rspecs] if x]
   for register in registers:
       assert len(register.meta) == 1
       register_offset = register.meta[0]
