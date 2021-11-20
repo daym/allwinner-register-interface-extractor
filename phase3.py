@@ -25,33 +25,41 @@ def clean_table(module, header, body):
     else:
       for x in item.replace("Module Name", "Module_Name").replace("Base Address", "Base_Address").split():
         suffix.append(x)
+  if suffix == ['Bit', 'Read/Write', 'Default/Hex', 'Description', 'HCD', 'HC']:
+    suffix = ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']
+
   header = (prefix, suffix)
   if body[0:1] == [[]]:
     del body[0]
+  access_possibilities = ["R/W1C", "R/W", "R", "W", "/"]
   for row in body:
-    while row[-1:] == [" "] or row[-1] == "CCU register list: ":
+    while row[-1:] == [" "] or row[-1:] == ["CCU register list: "]:
       del row[-1]
-    if row[0].endswith(" R/W1C "):
-      row[0] = row[0][:-len(" R/W1C ")]
-      row.insert(1, "R/W1C")
-    elif row[0].endswith(" R/W "):
-      row[0] = row[0][:-len(" R/W ")]
-      row.insert(1, "R/W")
-    elif row[0].endswith(" R "):
-      row[0] = row[0][:-len(" R ")]
-      row.insert(1, "R")
-    elif row[0].endswith(" W "):
-      row[0] = row[0][:-len(" W ")]
-      row.insert(1, "W")
-    elif row[0].endswith(" / "):
-      row[0] = row[0][:-len(" / ")]
-      row.insert(1, "/")
+    number_of_access_specs = len([x for x in suffix if x.find("Read/Write") != -1])
+    for i in range(number_of_access_specs):
+      if len(row) >= 1:
+        row[0] = row[0].rstrip()
+        for access_possibility in access_possibilities:
+          pattern = " {}".format(access_possibility)
+          if row[0].endswith(pattern):
+            row[0] = row[0][:-len(pattern)]
+            row.insert(1, access_possibility)
+            break
+    if len(row) >= 2:
+      parts = row[1].split()
+      if len(parts) > 1:
+         a1 = parts[0].strip()
+         a2 = parts[1].strip()
+         if a1 in access_possibilities and a2 in access_possibilities:
+           assert suffix == ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']
+           row[1] = a1
+           row.insert(2, a2)
     while len(row) > len(suffix):
       s = row[len(row) - 1]
       row[len(row) - 2] = row[len(row) - 2] + " " + s
       del row[len(row) - 1]
     if len(row) != len(suffix):
-      warning("Table formatting in PDF is unknown: module={!r}, header={!r}, body={!r}".format(module, header, body))
+      warning("Table formatting in PDF is unknown: module={!r}, header={!r}, row={!r}".format(module, header, row))
   return module, header, body
 
 def unroll_instances(module):
@@ -194,11 +202,8 @@ Register = namedtuple("Register", ["name", "meta", "header", "bits", "reset_valu
 def parse_Register(rspec):
     register_name, (register_meta, register_header), register_fields = rspec
     if register_header != ['Bit', 'Read/Write', 'Default/Hex', 'Description']:
-        if register_header == ['Bit', 'Read/Write', 'Default/Hex', 'Description', 'HCD', 'HC']:
-            register_header = ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']
-        else:
-            warning("{!r}: Unknown 'register' header {!r}".format(register_name, register_header))
-            return None
+        warning("{!r}: Unknown 'register' header {!r}".format(register_name, register_header))
+        return None
     bits = []
     default_value = 0
     default_mask = 0

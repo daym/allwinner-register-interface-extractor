@@ -189,6 +189,9 @@ def traverse(state, root, indent = 0, fontspecs = []): # fontspecs: [(id, node w
   for node in root.iterchildren(): # DFS
     attrib = node.attrib # filter it!
     xx = set(xnode.tag for xnode in node.iterchildren() if xnode.tag != "a")
+    if xx == {"b"}:
+       if not any(True for xnode in node.iterchildren() if xnode.tag == "b" and xnode.text.strip() != ""): # "foo <b> </b>"
+         xx = set()
     if node.tag == "fontspec":
       # need to mutate because scoping rules are that way
       xnode = dict(node.attrib)
