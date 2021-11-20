@@ -40,6 +40,9 @@ def clean_table(module, header, body):
     elif row[0].endswith(" R "):
       row[0] = row[0][:-len(" R ")]
       row.insert(1, "R")
+    elif row[0].endswith(" W "):
+      row[0] = row[0][:-len(" W ")]
+      row.insert(1, "W")
     elif row[0].endswith(" / "):
       row[0] = row[0][:-len(" / ")]
       row.insert(1, "/")
