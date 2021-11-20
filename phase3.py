@@ -227,7 +227,7 @@ re_N_unicode_range = re.compile(r"N\s*=\s*([0-9])+–([0-9]+)")
 re_N_to = re.compile(r"N\s*=\s*([0-9]+) to ([0-9]+)")
 re_n_lt = re.compile(r"([0-9]+)<n<([0-9]+)")
 re_n_le_lt = re.compile(r"([0-9]+)≤n<([0-9]+)")
-re_nN_tilde = re.compile(r"[(]([Nn])=([0-9]+)~([0-9]+)[)]")
+re_nN_tilde = re.compile(r"[(]([NnP])=([0-9]+)~([0-9]+)[)]")
 
 def parse_Offset(spec):
     register_offset = spec
