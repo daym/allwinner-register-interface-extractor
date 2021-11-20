@@ -218,8 +218,8 @@ def parse_Register(rspec):
         if len(parts) == 2:
             max_bit, min_bit = parts
             try:
-                max_bit = int(max_bit)
-                min_bit = int(min_bit)
+                max_bit = int(max_bit.strip())
+                min_bit = int(min_bit.strip())
             except ValueError:
                 warning("{!r}: Invalid field {!r}: Bitrange error".format(register_name, register_field))
                 continue
@@ -228,6 +228,12 @@ def parse_Register(rspec):
             continue
         else:
             max_bit, min_bit = parts[0], parts[0]
+            try:
+                max_bit = int(max_bit.strip())
+                min_bit = int(min_bit.strip())
+            except ValueError:
+                warning("{!r}: Invalid field {!r}: Bitrange error".format(register_name, register_field))
+                continue
         if description:
             name = description.split()[0] or "FIXME"
         else:
