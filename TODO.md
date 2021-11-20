@@ -1,22 +1,24 @@
 # Offset handling
 
 * WARNING:root:Offset is too complicated: 'Offset:'
-* WARNING:root:Offset is too complicated: 'Offset: 0x002C+N*0x04 (N=0–3)'
-* WARNING:root:Offset is too complicated: 'Offset: 0x0100+0x04+N*0x20 (N=0~7)'
-* WARNING:root:Offset is too complicated: 'Offset: 0x0100 + N*0x0004 (N = 0 to 31)'
-* WARNING:root:Offset is too complicated: 'Offset: 0x0100+N*0x0004 (N=0 to 7)'
-* WARNING:root:Offset is too complicated: 'Offset: 0x0100 + N*0x0040'
-* WARNING:root:Offset is too complicated: 'Offset: 0x0104 + N*0x0040'
-* WARNING:root:Offset is too complicated: 'Offset: 0x0110+N*0x04 (N=0–10)'
-* WARNING:root:Offset is too complicated: 'Offset: 0x0400–0x07FF'
-* WARNING:root:Offset is too complicated: 'Offset: 0x1000+n*0x0004 (0≤n<9)'
-* WARNING:root:Offset is too complicated: 'Offset: 0x110+N*0x04 (N=0–10)'
-* WARNING:root:Offset is too complicated: 'Offset: Base Address: 0x14'
+* WARNING:root:Offset is too complicated: 'Offset: 0x0050+N*0x0100+P*0x0004 '
+* WARNING:root:Offset is too complicated: 'Offset: 0x002C+N*0x04 (N=0~3)'
 
 # Multidimensional arrays (-> cluster)
 
 * 0x0060+N*0x0100+P*0x0004 (N=0–1)(P=0–3)
 
+# Errors in document
+
+* ['3:2 ', '/ ', '/ ', 'DBI_TXCS  FSM for DBI Transmit  00: IDLE  01: SHIF  10: DUMY  11: READ '] cannot be accessed
+* ASRCEN: Field name could not be determined: ['31:1 ', 'R ', '0x0 ', '/ ']
+* ASRCMANCFG: Field name could not be determined: ['30:26 ', 'R ', '0x0 ', '/ ']
+* ASRCRATIOSTAT: Field name could not be determined: ['31:30 ', 'R ', '0x0 ', '/ ']
+* ASRCRATIOSTAT: Field name could not be determined: ['27:26 ', 'R ', '0x0 ', '/ ']
+* FsinEXTCFG: Field name could not be determined: ['31:17 ', 'R ', '0x0 ', '/ ']
+* MCLKCFG: Field name could not be determined: ['31:17 ', 'R ', '0x0 ', '/ ']
+
 # Inapplicable elements
 
 * TODO: Maybe hide DSP_MSGBOX
+* font="8" <b> NOTE ff
