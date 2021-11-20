@@ -201,7 +201,7 @@ from collections import namedtuple
 Register = namedtuple("Register", ["name", "meta", "header", "bits", "reset_value", "reset_mask"])
 def parse_Register(rspec):
     register_name, (register_meta, register_header), register_fields = rspec
-    if register_header != ['Bit', 'Read/Write', 'Default/Hex', 'Description']:
+    if register_header[0:1] != ['Bit'] or "Default/Hex" not in register_header:
         warning("{!r}: Unknown 'register' header {!r}".format(register_name, register_header))
         return None
     bits = []
