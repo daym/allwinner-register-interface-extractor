@@ -145,8 +145,8 @@ def create_register(table_definition, name, addressOffset, description=None):
   result.append(text_element("addressOffset", "0x{:X}".format(addressOffset)))
   # FIXME: result.append(text_element("size", table_definition.size))
   # TODO: result.append(text_element("access", access))
-  # TODO: result.append(text_element("resetValue", resetValue.replace("_", "")))
-  # TODO: result.append(text_element("resetMask", "0x{:X}".format(table_definition.resetMask)))
+  result.append(text_element("resetValue", "0x{:X}".format(table_definition.reset_value)))
+  result.append(text_element("resetMask", "0x{:X}".format(table_definition.reset_mask)))
   # TODO: result.append(text_element("modifiedWriteValues", "oneToClear"))
   fields = etree.Element("fields")
   result.append(fields)
@@ -190,30 +190,34 @@ svd_root.set("{%s}noNamespaceSchemaLocation" % XS, "CMSIS-SVD.xsd")
 """
 
 from collections import namedtuple
-Register = namedtuple("Register", ["name", "meta", "header", "bits"])
+Register = namedtuple("Register", ["name", "meta", "header", "bits", "reset_value", "reset_mask"])
 def parse_Register(rspec):
     register_name, (register_meta, register_header), register_fields = rspec
     if register_header != ['Bit', 'Read/Write', 'Default/Hex', 'Description']:
         if register_header == ['Bit', 'Read/Write', 'Default/Hex', 'Description', 'HCD', 'HC']:
-            pass
+            register_header = ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']
         else:
             warning("{!r}: Unknown 'register' header {!r}".format(register_name, register_header))
             return None
     bits = []
+    default_value = 0
+    default_mask = 0
     for register_field in register_fields:
         # FIELD ['3 ', 'R/W ', '0x0 ', 'RMD_EN  Ramp Manual Down Enable  0: Disabled  1: Enabled ']
-        while len(register_field) < 4:
+        while len(register_field) < len(register_header):
             register_field.append("")
-        while len(register_field) > 4:
+        while len(register_field) > len(register_header):
             s = register_field[-1]
             del register_field[-1]
             register_field[-1] = register_field[-1] + " " + s
-        bitrange, access, default_value, description = register_field
+        if register_header == ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']:
+            # FIXME: Provide access_method parameter and choose which ACCESS to use
+            bitrange, access, access2, default_part, description = register_field
+        else:
+            bitrange, access, default_part, description = register_field
         if access.strip() == "/": # no access
             #info("{!r}: Field {!r} cannot be accessed".format(register_name, register_field))
             continue
-        # FIXME handle q
-        # target  for (max_bit, min_bit), name, description in bits:
         parts = bitrange.split(":")
         if len(parts) == 2:
             max_bit, min_bit = parts
@@ -234,6 +238,19 @@ def parse_Register(rspec):
             except ValueError:
                 warning("{!r}: Invalid field {!r}: Bitrange error".format(register_name, register_field))
                 continue
+        if default_part.strip() == "/" or default_part.strip() == "None":
+            pass
+        else:
+            try:
+                default_part = eval(default_part, {})
+                if default_part < 2**(max_bit - min_bit + 1):
+                    default_mask |= (2**(max_bit - min_bit + 1) - 1) << min_bit
+                    default_value |= default_part << min_bit
+                else:
+                    warning("{!r}: Default {} for field {!r} does not fit into slot with bitrange {}:{}".format(register_name, default_part, register_field, max_bit, min_bit))
+            except (NameError, SyntaxError):
+                error("{!r}: Could not parse default value {!r}".format(register_name, default_part))
+                import traceback
         if description:
             name = description.split()[0] or "FIXME"
             name = name.rstrip(".").rstrip()
@@ -245,7 +262,7 @@ def parse_Register(rspec):
         name = name.replace(".", "_") # XXX shouldn't svd2rust do that?
         bits.append(((max_bit, min_bit), name, description))
 
-    return Register(name = register_name, meta = register_meta, header = register_header, bits = bits)
+    return Register(name = register_name, meta = register_meta, header = register_header, bits = bits, reset_value = default_value, reset_mask = default_mask)
 
 re_N_unicode_range = re.compile(r"N\s*=\s*([0-9])+–([0-9]+)")
 re_N_to = re.compile(r"N\s*=\s*([0-9]+) to ([0-9]+)")
