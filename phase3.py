@@ -243,7 +243,7 @@ def parse_Register(rspec):
             except ValueError:
                 warning("{!r}: Invalid field {!r}: Bitrange error".format(register_name, register_field))
                 continue
-        if default_part.strip() in ["/", "None", "UDF"]:
+        if default_part.strip() in ["/", "None", "UDF", ""]:
             pass
         else:
             try:
