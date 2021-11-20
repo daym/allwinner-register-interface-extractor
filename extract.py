@@ -76,7 +76,7 @@ class State(object):
       return
     if attrib["meaning"] == "h0" and xx == {"b"}: # and text == "Contents"
       self.finish_this_table()
-    if attrib["meaning"] == "h3" and xx == {"b"} and text.strip().endswith(" Register Description"):
+    if attrib["meaning"] == "h3" and xx == {"b"}: # and text.strip().endswith(" Register Description"):
       self.finish_this_table()
     if attrib["meaning"] == "h2" and xx == {"b"}:
       self.finish_this_table()
