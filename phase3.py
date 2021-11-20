@@ -214,6 +214,12 @@ def parse_Register(rspec):
         parts = bitrange.split(":")
         if len(parts) == 2:
             max_bit, min_bit = parts
+            try:
+                max_bit = int(max_bit)
+                min_bit = int(min_bit)
+            except ValueError:
+                warning("{!r}: Invalid field {!r}: Bitrange error".format(register_name, register_field))
+                continue
         elif len(parts) != 1:
             warning("Field could not be parsed as a bitrange: {!r}".format(parts))
             continue
