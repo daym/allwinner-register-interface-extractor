@@ -14,7 +14,7 @@ phase3_host.svd: phase2_result.py phase3.py
 	python3 phase3.py $< >$@.new && mv $@.new $@
 
 lib.rs: phase3_host.svd
-	svd2rust -i phase3_host.svd
+	svd2rust --target riscv -i phase3_host.svd
 
 clean:
 	rm -rf partsvol1
