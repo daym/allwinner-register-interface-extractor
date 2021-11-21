@@ -232,6 +232,8 @@ svd_root.set("{%s}noNamespaceSchemaLocation" % XS, "CMSIS-SVD.xsd")
 
 from collections import namedtuple
 Register = namedtuple("Register", ["name", "meta", "header", "bits", "reset_value", "reset_mask"])
+re_definitely_not_name = re.compile("^[0-9]*$")
+re_name = re.compile(r"[0-9]*[A-Z_]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel")
 def parse_Register(rspec):
     register_name, (register_meta, register_header), register_fields = rspec
     if register_header[0:1] != ['Bit'] or "Default/Hex" not in register_header:
@@ -290,13 +292,17 @@ def parse_Register(rspec):
                 error("{!r}: Could not parse default value {!r}".format(register_name, default_part))
                 import traceback
         if description:
-            name = description.split()[0] or "FIXME"
+            name = description.split()[0] or ""
             name = name.rstrip(".").rstrip()
         else:
-            name = "FIXME"
-        if name == "FIXME" or not name or name.strip() == "/":
+            name = ""
+        if re_name.match(name):
+            pass
+        elif not name or name.strip() == "/" or re_definitely_not_name.match(name) or name.strip() in ["one", "remote", "00b", "writes", "per-port", "power", "that", "end", "no", "causing", "is", "1:", "reserved"]:
             warning("{!r}: Field name could not be determined: {!r}".format(register_name, register_field))
             continue
+        else:
+            assert re_name.match(name), name
         name = name.replace(".", "_") # XXX shouldn't svd2rust do that?
         bits.append(((max_bit, min_bit), name, description, access))
 
