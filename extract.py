@@ -45,6 +45,7 @@ class State(object):
     self.in_table = False
     self.in_table_header = False
     self.table_columns = []
+    self.table_column_lefts = []
     self.table_left = 0
     self.offset = None
     self.in_offset = False
@@ -56,6 +57,7 @@ class State(object):
       self.in_table = rname
       self.table_columns = []
       self.table_left = None
+      self.table_column_lefts = []
       self.in_table_header = True
   def finish_this_table(self):
     if self.in_table:
@@ -113,6 +115,16 @@ class State(object):
         print("{!r},".format("Offset: " + self.offset))
         self.offset = None
       return
+    elif attrib["meaning"] == "h4" and xx == {"b"} and self.in_table and not self.in_table_header and not self.in_offset: # sneakily start another table
+      left = int(attrib["left"])
+      if left == self.table_left:
+          #if left in self.table_column_lefts:
+          i = self.table_column_lefts.index(left)
+          xcolumn = self.table_columns[i]
+          if text != xcolumn:
+              self.finish_this_table()
+      #else:
+      #    self.finish_this_table()
     if self.in_table and self.in_table_header:
       if attrib["meaning"] == "h4" and len(self.table_columns) > 0:
         assert len(self.table_columns) > 0, (self.in_table, text)
@@ -127,6 +139,7 @@ class State(object):
         else:
           assert int(attrib["left"]) > self.table_left, (self.in_table, text)
         self.table_columns.append(text)
+        self.table_column_lefts.append(int(attrib["left"]))
       else:
         print("], [[")
         self.in_table_header = False
