@@ -3,9 +3,6 @@
 * WARNING:root:Offset is too complicated: 'Offset:'
 * WARNING:root:Offset is too complicated: 'Offset: 0x0050+N*0x0100+P*0x0004 '
 * WARNING:root:Offset is too complicated: 'Offset: 0x002C+N*0x04 (N=0~3)'
-
-# Multidimensional arrays (-> cluster)
-
 * 0x0060+N*0x0100+P*0x0004 (N=0–1)(P=0–3)
 
 # Errors in document
@@ -18,7 +15,10 @@
 * FsinEXTCFG: Field name could not be determined: ['31:17 ', 'R ', '0x0 ', '/ ']
 * MCLKCFG: Field name could not be determined: ['31:17 ', 'R ', '0x0 ', '/ ']
 
+# Usability
+
+* Support enumerations
+
 # Inapplicable elements
 
 * TODO: Maybe hide DSP_MSGBOX
-* font="8" <b> NOTE ff
