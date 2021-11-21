@@ -159,12 +159,45 @@ def create_register(table_definition, name, addressOffset, description=None):
   fields = etree.Element("fields")
   result.append(fields)
   bits = table_definition.bits
-  for (max_bit, min_bit), name, description in bits:
+  for (max_bit, min_bit), name, description, access_raw in bits:
     field = etree.Element("field")
     field.append(text_element("name", name.replace("[", "_").replace(":", "_").replace("]", "_")))
+    access = {
+            "R": "read-only",
+            "RO": "read-only",
+            "RC": "read-only",
+            "RC/W": "read-only",
+            "R/W": "read-write",
+            "R/w": "read-write",
+            "R/WC": "read-write",
+            "R/W1C": "read-write",
+            "R/W1S": "read-write",
+            "R/W0C": "read-write",
+            "R/WAC": "read-write",
+            "W": "write-only",
+            "WC": "write-only",
+            "WAC": "write-only",
+    }[access_raw.replace(" ", "").strip()]
+    field.append(text_element("access", access))
+    modifiedWriteValues = {
+            "R/WC": "clear",
+            "WC": "clear",
+            #"WAC": "clear", # after operation FINISHED--not necessarily directly after a Write.
+            #"R/WAC": "clear", # after operation FINISHED--not necessarily directly after a Write.
+            "R/W1C": "oneToClear",
+            "R/W1S": "oneToSet",
+            "R/W0C": "zeroToClear",
+    }.get(access_raw.replace(" ", "").strip())
+    if modifiedWriteValues:
+        field.append(text_element("modifiedWriteValues", modifiedWriteValues))
+    readAction = {
+            "RC": "clear",
+            "RC/W": "clear",
+    }.get(access_raw.replace(" ", "").strip())
+    if readAction:
+        field.append(text_element("readAction", readAction))
     field.append(text_element("description", description))
     field.append(text_element("bitRange", "[{}:{}]".format(max_bit, min_bit)))
-    # FIXME: access
     # TODO: enumeratedValues, enumeratedValue
     fields.append(field)
   return result
@@ -265,7 +298,7 @@ def parse_Register(rspec):
             warning("{!r}: Field name could not be determined: {!r}".format(register_name, register_field))
             continue
         name = name.replace(".", "_") # XXX shouldn't svd2rust do that?
-        bits.append(((max_bit, min_bit), name, description))
+        bits.append(((max_bit, min_bit), name, description, access))
 
     return Register(name = register_name, meta = register_meta, header = register_header, bits = bits, reset_value = default_value, reset_mask = default_mask)
 
