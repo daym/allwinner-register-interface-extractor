@@ -3,6 +3,7 @@
 from lxml import etree
 import sys
 import re
+import os
 import logging
 logging.basicConfig(level=logging.INFO)
 from logging import debug, info, warning, error, critical
@@ -244,6 +245,8 @@ def traverse(state, root, indent = 0, fontspecs = []): # fontspecs: [(id, node w
 
 root = tree.getroot()
 state = State()
+model = os.path.basename(sys.argv[2]).replace("Allwinner_", "").split("_")[0]
+print("__model = {!r}".format(model))
 print("Module_List = None")
 traverse(state, root)
 state.finish_this_table()

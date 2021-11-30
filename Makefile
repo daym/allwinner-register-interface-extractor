@@ -8,7 +8,7 @@ partsvol1/a.xml: $(PPRVOL1)
 	pdftohtml -nodrm -xml $< partsvol1/a >/dev/null
 
 phase2_result.py: partsvol1/a.xml extract.py
-	./extract.py $< > "$@".new && mv "$@".new "$@"
+	./extract.py $< $(PPRVOL1) > "$@".new && mv "$@".new "$@"
 
 phase3_host.svd: phase2_result.py phase3.py
 	python3 phase3.py $< >$@.new && mv $@.new $@

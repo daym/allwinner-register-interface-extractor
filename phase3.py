@@ -96,7 +96,7 @@ for n in dir(phase2_result):
     registers[module] = []
   registers[module].append((n, header, body))
 
-__model = "FIXME"
+__model = phase2_result.__model
 
 def text_element(key, text):
   result = etree.Element(key)
@@ -110,7 +110,7 @@ svd_root.attrib["schemaVersion"] = "1.3"
 svd_root.append(text_element("vendor", "Allwinner"))
 svd_root.append(text_element("vendorID", "sunxi"))
 svd_root.append(text_element("name", __model.replace(" ", "_")))
-svd_root.append(text_element("series", "D1"))
+svd_root.append(text_element("series", __model))
 svd_root.append(text_element("version", "0.1")) # FIXME: version of this description, adding CMSIS-SVD 1.1 tags
 svd_root.append(text_element("description", __model))
 svd_root.append(text_element("licenseText", "questionable"))
