@@ -1,0 +1,16 @@
+#!/bin/sh
+
+set -e
+
+input="$1"
+if [ -z "${input}" -o ! -f "${input}" ]
+then
+  echo "Error: missing input file">&2
+  echo "Note: Please specify (the first) PPR PDF.">&2
+  exit 1
+fi
+
+cat > config.mk << EOF
+PPRVOL1 := ${input}
+EOF
+make clean

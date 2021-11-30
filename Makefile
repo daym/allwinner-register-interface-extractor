@@ -1,4 +1,4 @@
-PPRVOL1 = D1_User_Manual_V0.1_Draft_Version.pdf
+include config.mk
 .PHONY: all
 
 all: phase3_host.svd lib.rs
