@@ -172,7 +172,11 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
   q = meaning.split()
   if len(q) < parts:
     return None
-  name = "_".join(meaning.split()[0:parts]).rstrip(",").rstrip(";").rstrip(".").strip()
+  name = "_".join(q[0:parts]).rstrip(",").rstrip(";").rstrip(".").strip()
+  if len(q) > parts:
+    suffix = q[parts].strip()
+    if suffix.startswith("k") or suffix.startswith("mV") or suffix.startswith("dB") or suffix == "V" or suffix == "ms" or suffix.startswith("uA") or suffix.startswith("kHz") or suffix == "s": # keep units
+      name = "{}_{}".format(name, suffix)
   if len(name) == 0:
     name = key
   for a, b in [
@@ -258,7 +262,7 @@ def create_register(table_definition, name, addressOffset, register_description=
       if len(set([variant_name for variant_name, n, meaning in enums])) == len(enums):
         break
       else:
-        warning("register {!r} field {!r} enum variants {!r} are not unique.".format(register_name, name, enums))
+        info("register {!r} field {!r} enum variants {!r} are not unique.".format(register_name, name, enums))
     if register_name == "TWI_EFR" and name == "DBN" and (max_bit, min_bit) == (0, 1): # Errata in Allwinner_R40_User_Manual_V1.0.pdf
         max_bit, min_bit = 1, 0
     field = etree.Element("field")
