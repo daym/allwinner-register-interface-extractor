@@ -250,6 +250,8 @@ from collections import namedtuple
 Register = namedtuple("Register", ["name", "meta", "header", "bits", "reset_value", "reset_mask"])
 re_definitely_not_name = re.compile("^[0-9]*$")
 re_name = re.compile(r"[0-9]*[A-Z_]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en")
+re_name_read = re.compile(r"^[(]read[)]([0-9]*[A-Z_a-z]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en)$")
+re_name_write = re.compile(r"^[(]write[)]([0-9]*[A-Z_a-z]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en)$")
 def parse_Register(rspec):
     register_name, (register_meta, register_header), register_fields = rspec
     if register_header[0:1] != ['Bit'] or "Default/Hex" not in register_header:
@@ -310,6 +312,13 @@ def parse_Register(rspec):
         if description:
             name = description.replace("hyscale en", "hyscale_en").split()[0] or ""
             name = name.rstrip(".").rstrip(",").rstrip()
+            name = name.replace("(Read)", "(read)")
+            m = re_name_read.match(name)
+            if m: # "(read)A" vs "(write)B"
+              name = "{}_R".format(m.group(1))
+            m = re_name_write.match(name)
+            if m: # "(read)A" vs "(write)B"
+              name = "{}_W".format(m.group(1))
         else:
             name = ""
         if re_name.match(name):
