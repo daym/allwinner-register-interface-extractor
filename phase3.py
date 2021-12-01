@@ -168,20 +168,23 @@ def create_addressBlock(offset, size, usage="registers"):
 
 re_digit = re.compile(r"^[0-9]")
 
-def create_enumeratedValue(key, meaning):
-  result = etree.Element("enumeratedValue")
-  name = meaning.split()[0].rstrip(",").rstrip(";").strip()
+def generate_enumeratedValue_name(key, meaning, parts = 1):
+  q = meaning.split()
+  if len(q) < parts:
+    return None
+  name = "_".join(meaning.split()[0:parts]).rstrip(",").rstrip(";").strip()
   if len(name) == 0:
     name = key
   for a, b in [
     ("*", "_times_"),
+    ("‘", "_quote_"),
+    ("’", "_quote_"),
     ("+", "_plus_"),
     ("-", "_minus_"),
     ("=", "_equals_"),
     (".", "_point_"),
     ("%", "_percent_"),
     ("/", "_slash_"),
-    ("’", "_quote_"),
     (":", "_colon_"),
     ("→", "_"),
     ("—", "_"),
@@ -190,12 +193,23 @@ def create_enumeratedValue(key, meaning):
     ("~", "_tilde_"),
     ("^", "_circumflex_"),
     ("{", "_openingbrace_"),
+    ("<", "_lt_"),
+    (">", "_gt_"),
+    ("&", "_amp_"),
+    ("“", ""), # dquot
+    ("”", ""), # dquot
+    ("¼", "_onequarter_"),
+    ("½", "_onehalf_"),
   ]:
      name = name.replace(a, b)
   if not name:
      name = key
   if re_digit.match(name):
      name = "_{}".format(name)
+  return name
+
+def create_enumeratedValue(name, key, meaning):
+  result = etree.Element("enumeratedValue")
   #print("XXNAME {!r}".format(name), file=sys.stderr)
   result.append(text_element("name", name)) # Note: Supposedly optional
   result.append(text_element("description", meaning))
@@ -223,11 +237,25 @@ def create_register(table_definition, name, addressOffset, register_description=
     if description.find("R/W") != -1: # maybe parse error
       warning("{!r}: field {!r}: Maybe parse error; description={!r}".format(register_name, name, description))
 
-    enums = []
-    for line in description.split("\n"):
+    counter = 0
+    while True:
+      counter = counter + 1
+      enums = []
+      for line in description.split("\n"):
         if re_enum.match(line):
-            enums.append(line.split(":", 1))
-
+            n, meaning = line.split(":", 1)
+            n = n.strip()
+            meaning = meaning.strip()
+            variant_name = generate_enumeratedValue_name(n, meaning or n, parts = counter)
+            if variant_name is None:
+              warning("register {!r} field {!r} enum variants are not unique. Giving up.".format(register_name, name))
+              enums = []
+              break
+            enums.append((variant_name, n, meaning))
+      if len(set([variant_name for variant_name, n, meaning in enums])) == len(enums):
+        break
+      else:
+        warning("register {!r} field {!r} enum variants {!r} are not unique.".format(register_name, name, enums))
     if register_name == "TWI_EFR" and name == "DBN" and (max_bit, min_bit) == (0, 1): # Errata in Allwinner_R40_User_Manual_V1.0.pdf
         max_bit, min_bit = 1, 0
     field = etree.Element("field")
@@ -274,9 +302,7 @@ def create_register(table_definition, name, addressOffset, register_description=
     field.append(text_element("bitRange", "[{}:{}]".format(max_bit, min_bit)))
     if enums:
         enumeratedValues = etree.Element("enumeratedValues")
-        for n, meaning in enums:
-          n = n.strip()
-          meaning = meaning.strip()
+        for variant_name, n, meaning in enums:
           num_bits = max_bit - min_bit + 1
           assert not (len(n) == 3 and n.startswith("0x") and num_bits == 3), (n, meaning, name, register_name)
           if n.startswith("0x"):
@@ -291,7 +317,7 @@ def create_register(table_definition, name, addressOffset, register_description=
               else:
                   warning("Could not interpret enumeratedValue {!r}: {!r} in field {!r} in register {!r}".format(n, meaning, name, register_name))
                   continue
-          enumeratedValue = create_enumeratedValue(n, meaning or n)
+          enumeratedValue = create_enumeratedValue(variant_name, n, meaning or n)
           enumeratedValues.append(enumeratedValue)
         if len(enumeratedValues) > 0:
           field.append(enumeratedValues)
