@@ -29,12 +29,14 @@ def clean_table(module, header, body):
     suffix = ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']
 
   header = (prefix, suffix)
-  while body[0:1] == [[]]:
+  while body[0:1] == [[]] or body[0:1] == [[" "]]:
     del body[0]
   access_possibilities = ["R/W1C", "R/W", "R", "W", "/"]
   for row in body:
     while row[-1:] == [" "] or row[-1:] == ["CCU register list: "]:
       del row[-1]
+    #if row == []:
+    #  continue
     number_of_access_specs = len([x for x in suffix if x.find("Read/Write") != -1])
     for i in range(number_of_access_specs):
       if len(row) >= 1:
@@ -60,14 +62,14 @@ def clean_table(module, header, body):
       del row[len(row) - 1]
     if len(row) != len(suffix):
       warning("Table formatting in PDF is unknown: module={!r}, header={!r}, row={!r}".format(module, header, row))
+  while body[-1:] == [[]] or body[-1:] == [[' ']]:
+     del body[-1]
   return module, header, body
 
 def unroll_instances(module):
   _, header, body = module
   prefix, header = header
   assert header == ["Module_Name", "Base_Address"]
-  while body[-1:] == [[]]:
-     del body[-1]
   #print("BODY", body, file=sys.stderr)
   for Module_Name, Base_Address in body:
     Module_Name = Module_Name.strip()
