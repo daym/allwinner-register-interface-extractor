@@ -34,10 +34,15 @@ def clean_table(module, header, body, name):
   header = (prefix, suffix)
   while body[0:1] == [[]] or body[0:1] == [[" "]]:
     del body[0]
-  access_possibilities = ["R/W1C", "R/W", "R", "W", "/"]
   for row in body:
     while row[-1:] == [" "] or row[-1:] == ["CCU register list: "]:
       del row[-1]
+  while body[-1:] == [[]] or body[-1:] == [[' ']]:
+     del body[-1]
+  if module is None:
+      return module, header, body
+  access_possibilities = ["R/W1C", "R/W", "R", "W", "/"]
+  for row in body:
     if row == []:
       continue
     while len(row) >= 1 and row[0] == " ":
@@ -75,14 +80,12 @@ def clean_table(module, header, body, name):
       del row[len(row) - 1]
     if len(row) != len(suffix):
       warning("Table formatting in PDF is unknown: module={!r}, header={!r}, row={!r}".format(module, header, row))
-  while body[-1:] == [[]] or body[-1:] == [[' ']]:
-     del body[-1]
   return module, header, body
 
 def unroll_instances(module):
   _, header, body = module
   prefix, header = header
-  assert header == ["Module_Name", "Base_Address"]
+  assert header == ["Module_Name", "Base_Address"], header
   #print("BODY", body, file=sys.stderr)
   for Module_Name, Base_Address in body:
     Module_Name = Module_Name.strip()
@@ -103,7 +106,7 @@ for n in dir(phase2_result):
   except TypeError:
     continue
   if module:
-    #print("MOD", n, module, file=sys.stderr)
+    print("MOD", n, module, file=sys.stderr)
     module_module, module_header, module_body = module
     module_module = None # clean tree
     module = clean_table(module_module, module_header, module_body, n)
@@ -143,9 +146,6 @@ svd_root.append(text_element("size", 32))
 svd_root.append(text_element("access", "read-write"))
 #svd_root.append(text_element("resetValue", "0"))
 svd_root.append(text_element("resetMask", "0xFFFFFFFF"))
-
-svd_peripherals = etree.Element("peripherals")
-svd_root.append(svd_peripherals)
 
 def create_peripheral(name, baseAddress, access="read-write", description=None, groupName=None):
   result = etree.Element("peripheral")
@@ -229,6 +229,43 @@ def create_register(table_definition, name, addressOffset, description=None):
     field.append(text_element("bitRange", "[{}:{}]".format(max_bit, min_bit)))
     # TODO: enumeratedValues, enumeratedValue
     fields.append(field)
+  return result
+
+def create_cpu(suffix, body):
+  assert suffix == ["Item"], suffix
+  assert len(body) == 1
+  body = body[0]
+  result = etree.Element("cpu")
+  i = 0
+  while i < len(body):
+    if i > 0 and body[i].startswith("-"):
+        body[i - 1] = body[i - 1] + body[i]
+        del body[i]
+    else:
+        i = i + 1
+  body = [x.strip() for x in body]
+  #QQ [['Quad-core ARM Cortex-A7 Processor ', 'ARMv7 ISA standard ARM instruction set ', 'Thumb-2 Technology ', 'Jazeller RCT ', 'NEON Advanced SIMD ', 'VFPv4 floating point ', 'Large Physical Address Extensions(LPAE) ', '32KB L1 Instruction cache and 32KB L1 Data cache for per CPU ', '512KB L2 cache shared ']]
+  cpu_name = "other"
+  cpu_fpuPresent = False
+  for item in body:
+      item = item.replace("per CPU", "per C")
+      if item.endswith("Processor") or item.endswith("CPU"):
+          cpu_name = item.replace("Processor", "").replace("CPU", "").strip()
+          if cpu_name.endswith("ARM Cortex-A7"):
+              cpu_name = "CA7"
+      elif item.startswith("VFPv4 floating point") or item.startswith("XuanTie C906 RISC-V CPU"): # the latter is RV64GCV
+          cpu_fpuPresent = True
+  result.append(text_element("name", cpu_name)) # I think technically it's "selectable" endian.
+  result.append(text_element("revision", "0")) # yeah... no.
+  result.append(text_element("endian", "little")) # I think technically it's "selectable" endian.
+  result.append(text_element("mpuPresent", "true"))
+  result.append(text_element("fpuPresent", "true" if cpu_fpuPresent else "false"))
+  if cpu_fpuPresent:
+      result.append(text_element("fpuDP", "true"))
+  # icachePresent, dcachePresent
+  result.append(text_element("nvicPrioBits", "0")) # FIXME: is mandatory but no idea how to find it
+  result.append(text_element("vendorSystickConfig", "false")) # FIXME: does it or does it not implement its own systick timer
+  print("QQQ", body, file=sys.stderr)
   return result
 
 et = etree.ElementTree(svd_root)
@@ -360,8 +397,18 @@ def parse_Offset(spec):
     register_offset = re_n_le_lt.sub(lambda match: "n={}~{}".format(int(match.group(1)), int(match.group(2)) - 1), register_offset)
     return register_offset
 
+svd_peripherals = etree.Element("peripherals")
+svd_root.append(svd_peripherals)
+
 for module, rspecs in registers.items():
   module = eval(module, {})
+  if module is None: # for example CPU Architecture!
+     for a_name,a_header,a_body in rspecs:
+       if a_name == "CPU_Architecture":
+         a_prefix, a_suffix = a_header
+         svd_cpu = create_cpu(a_suffix, a_body)
+         svd_root.append(svd_cpu)
+     continue
   peripherals = sorted(module.items())
   module_name, module_baseAddress = peripherals[0]
 

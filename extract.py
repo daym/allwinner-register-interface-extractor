@@ -25,6 +25,7 @@ fontspec_to_meaning = [
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '15'}, "h4"),
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '90'}, "garbage"),
   ({'color': '#005ebd', 'family': 'ABCDEE+Calibri,Bold', 'size': '19'}, "h3"),
+  ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '21'}, "h3"), # CPU Architecture
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '23'}, "h2"),
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '18'}, "garbage-if-empty"), # Otherwise it throws off table header detection--and the text is empty anyway (TODO: check).
   ({'color': '#000000', 'family': 'Times New Roman,BoldItalic', 'size': 15}, "garbage-if-empty"),
@@ -59,6 +60,7 @@ class State(object):
     self.table_left = 0
     self.offset = None
     self.in_offset = False
+    self.h3 = None
   def start_table(self, rname):
       self.finish_this_table()
       print()
@@ -94,6 +96,15 @@ class State(object):
       self.finish_this_table()
     if attrib["meaning"] == "h3" and xx == {"b"}: # and text.strip().endswith(" Register Description"):
       self.finish_this_table()
+      self.h3 = text
+      if self.h3.strip() == "CPU Architecture":
+          # Alternative: Make it detect as h4.
+          self.start_table("CPU Architecture")
+          self.table_left = int(attrib["left"])
+          self.table_columns = ["Item"]
+          self.table_column_lefts = [self.table_left]
+          self.in_table_header = False
+          print("'Item'], [[")
     if attrib["meaning"] == "h2" and xx == {"b"}:
       self.finish_this_table()
     if attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Offset:"):
