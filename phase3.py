@@ -172,7 +172,7 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
   q = meaning.split()
   if len(q) < parts:
     return None
-  name = "_".join(meaning.split()[0:parts]).rstrip(",").rstrip(";").strip()
+  name = "_".join(meaning.split()[0:parts]).rstrip(",").rstrip(";").rstrip(".").strip()
   if len(name) == 0:
     name = key
   for a, b in [
@@ -200,6 +200,9 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
     ("”", ""), # dquot
     ("¼", "_onequarter_"),
     ("½", "_onehalf_"),
+    ("–", "_"),
+    ("°", "_deg_"),
+    (";", "_semicolon_"),
   ]:
      name = name.replace(a, b)
   if not name:
