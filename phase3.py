@@ -175,7 +175,7 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
   name = "_".join(q[0:parts]).rstrip(",").rstrip(";").rstrip(".").strip()
   if len(q) > parts:
     suffix = q[parts].strip()
-    if suffix.startswith("k") or suffix.startswith("mV") or suffix.startswith("dB") or suffix == "V" or suffix == "ms" or suffix.startswith("uA") or suffix.startswith("kHz") or suffix == "s": # keep units
+    if suffix.startswith("k") or suffix.startswith("mV") or suffix.startswith("dB") or suffix == "V" or suffix == "ms" or suffix.startswith("uA") or suffix.startswith("kHz") or suffix == "s" or suffix == "cycles" or suffix == "sample": # keep units
       name = "{}_{}".format(name, suffix)
   if len(name) == 0:
     name = key
@@ -223,6 +223,8 @@ def create_enumeratedValue(name, key, meaning):
   result.append(text_element("value", key))
   return result
 
+re_enum_column_2 = re.compile(r"^([^:]*)  (Others|Other|1X|0x[0-9A-F]+):(.*)")
+
 svd_peripherals_by_path = {}
 
 def create_register(table_definition, name, addressOffset, register_description=None):
@@ -248,9 +250,25 @@ def create_register(table_definition, name, addressOffset, register_description=
     while True:
       counter = counter + 1
       enums = []
-      for line in description.split("\n"):
-        if re_enum.match(line):
-            n, meaning = line.split(":", 1)
+      lines = [line.split(":", 1) for line in description.split("\n") if re_enum.match(line)]
+      #if [line.split(":", 1) for line in description.split("\n") if
+      #if len([1 for n, meaning in lines if meaning.find(":") != -1]) > 0:
+      #  print("QQ", lines, file=sys.stderr)
+
+      # Check for columns like "0x00: foo    0x10: bar" and flatten those
+      if len([1 for n, meaning in lines if re_enum_column_2.match(meaning)]) > 0: 
+         nlines = []
+         for n, meaning in lines:
+            m = re_enum_column_2.search(meaning)
+            if m:
+              meaning, n_2, meaning_2 = m.group(1), m.group(2), m.group(3)
+              assert not re_enum_column_2.match(meaning)
+              nlines.append((n_2, meaning_2))
+            nlines.append((n, meaning))
+         lines = nlines
+         assert len([1 for n, meaning in lines if re_enum_column_2.match(meaning)]) == 0, (register_name, name, lines)
+         warning("XXX register {!r} field {!r} enum variants are in columns: {!r}".format(register_name, name, lines))
+      for n, meaning in lines:
             n = n.strip()
             meaning = meaning.strip()
             variant_name = generate_enumeratedValue_name(n, meaning or n, parts = counter)
