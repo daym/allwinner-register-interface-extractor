@@ -14,6 +14,8 @@ from pprint import pprint
 
 del phase2_result.Module_List
 
+re_enum = re.compile(r"^[0-9xA-F]+: ")
+
 #phase2_result__names
 
 def clean_table(module, header, body, name):
@@ -76,7 +78,8 @@ def clean_table(module, header, body, name):
            row.insert(2, a2)
     while len(row) > len(suffix):
       s = row[len(row) - 1]
-      row[len(row) - 2] = row[len(row) - 2] + " " + s
+      sep = "\n" if re_enum.match(s) else " "
+      row[len(row) - 2] = row[len(row) - 2] + sep + s
       del row[len(row) - 1]
     if len(row) != len(suffix):
       warning("Table formatting in PDF is unknown: module={!r}, header={!r}, row={!r}".format(module, header, row))
@@ -163,13 +166,49 @@ def create_addressBlock(offset, size, usage="registers"):
   result.append(text_element("usage", usage))
   return result
 
+re_digit = re.compile(r"^[0-9]")
+
+def create_enumeratedValue(key, meaning):
+  result = etree.Element("enumeratedValue")
+  name = meaning.split()[0].rstrip(",").rstrip(";").strip()
+  if len(name) == 0:
+    name = key
+  for a, b in [
+    ("*", "_times_"),
+    ("+", "_plus_"),
+    ("-", "_minus_"),
+    ("=", "_equals_"),
+    (".", "_point_"),
+    ("%", "_percent_"),
+    ("/", "_slash_"),
+    ("’", "_quote_"),
+    (":", "_colon_"),
+    ("→", "_"),
+    ("—", "_"),
+    (",", "_comma_"),
+    ("…", ""),
+    ("~", "_tilde_"),
+    ("^", "_circumflex_"),
+    ("{", "_openingbrace_"),
+  ]:
+     name = name.replace(a, b)
+  if not name:
+     name = key
+  if re_digit.match(name):
+     name = "_{}".format(name)
+  #print("XXNAME {!r}".format(name), file=sys.stderr)
+  result.append(text_element("name", name)) # Note: Supposedly optional
+  result.append(text_element("description", meaning))
+  result.append(text_element("value", key))
+  return result
+
 svd_peripherals_by_path = {}
 
-def create_register(table_definition, name, addressOffset, description=None):
+def create_register(table_definition, name, addressOffset, register_description=None):
   result = etree.Element("register")
   register_name = name
   result.append(text_element("name", name))
-  result.append(text_element("description", description or name))
+  result.append(text_element("description", register_description or name))
   # FIXME  result.append(text_element("alternateRegister", primary_registers_by_absolute_address[addressOffset]))
   result.append(text_element("addressOffset", "0x{:X}".format(addressOffset)))
   # FIXME: result.append(text_element("size", table_definition.size))
@@ -183,6 +222,12 @@ def create_register(table_definition, name, addressOffset, description=None):
   for (max_bit, min_bit), name, description, access_raw in bits:
     if description.find("R/W") != -1: # maybe parse error
       warning("{!r}: field {!r}: Maybe parse error; description={!r}".format(register_name, name, description))
+
+    enums = []
+    for line in description.split("\n"):
+        if re_enum.match(line):
+            enums.append(line.split(":", 1))
+
     if register_name == "TWI_EFR" and name == "DBN" and (max_bit, min_bit) == (0, 1): # Errata in Allwinner_R40_User_Manual_V1.0.pdf
         max_bit, min_bit = 1, 0
     field = etree.Element("field")
@@ -227,7 +272,29 @@ def create_register(table_definition, name, addressOffset, description=None):
         field.append(text_element("readAction", readAction))
     field.append(text_element("description", description))
     field.append(text_element("bitRange", "[{}:{}]".format(max_bit, min_bit)))
-    # TODO: enumeratedValues, enumeratedValue
+    if enums:
+        enumeratedValues = etree.Element("enumeratedValues")
+        for n, meaning in enums:
+          n = n.strip()
+          meaning = meaning.strip()
+          num_bits = max_bit - min_bit + 1
+          assert not (len(n) == 3 and n.startswith("0x") and num_bits == 3), (n, meaning, name, register_name)
+          if n.startswith("0x"):
+              if len(n) > len("0x"): # ok
+                  pass
+              else:
+                  warning("Could not interpret enumeratedValue {!r}: {!r} in field {!r} in register {!r}".format(n, meaning, name, register_name))
+                  continue
+          else: # binary
+              if len(n) == num_bits and len([x for x in n if x not in ["0", "1"]]) == 0:
+                  n = "0b{}".format(n)
+              else:
+                  warning("Could not interpret enumeratedValue {!r}: {!r} in field {!r} in register {!r}".format(n, meaning, name, register_name))
+                  continue
+          enumeratedValue = create_enumeratedValue(n, meaning or n)
+          enumeratedValues.append(enumeratedValue)
+        if len(enumeratedValues) > 0:
+          field.append(enumeratedValues)
     fields.append(field)
   return result
 
@@ -454,7 +521,7 @@ for module, rspecs in registers.items():
           import traceback
           traceback.print_exc()
           continue
-      svd_register = create_register(register, register.name, register_offset, description=None) # FIXME: description
+      svd_register = create_register(register, register.name, register_offset, register_description=None) # FIXME: description
       svd_registers.append(svd_register)
 
 sys.stdout.flush()
