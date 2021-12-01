@@ -56,6 +56,16 @@ def clean_table(module, header, body):
            assert suffix == ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']
            row[1] = a1
            row.insert(2, a2)
+    while len(row) >= 1 and row[0] == " ":
+      del row[0]
+    if len([x for x in row if x == " "]) > 0:
+      nrow = []
+      for i, x in enumerate(row):
+          if x != " ":
+            nrow.append(x)
+      row = nrow
+    if len(row) >= 3 and row[1] == " ":
+        assert row[4] == "RQ", row
     while len(row) > len(suffix):
       s = row[len(row) - 1]
       row[len(row) - 2] = row[len(row) - 2] + " " + s
