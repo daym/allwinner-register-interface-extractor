@@ -26,6 +26,8 @@ fontspec_to_meaning = [
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '90'}, "garbage"),
   ({'color': '#005ebd', 'family': 'ABCDEE+Calibri,Bold', 'size': '19'}, "h3"),
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '23'}, "h2"),
+  ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '18'}, "garbage-if-empty"), # Otherwise it throws off table header detection--and the text is empty anyway (TODO: check).
+
 ]
 
 def hashable_fontspec(d):
@@ -75,6 +77,8 @@ class State(object):
   def process_text(self, text, attrib, xx):
     text = text.replace("Offset :0x", "Offset: 0x")
     if attrib["meaning"] == "garbage":
+      return
+    if attrib["meaning"] == "garbage-if-empty" and text.strip() == "":
       return
     #print(">" + text + "<")
     # Fix typo
