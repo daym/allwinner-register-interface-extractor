@@ -11,6 +11,7 @@ from logging import debug, info, warning, error, critical
 re_digits = re.compile(r"^[0-9]+$")
 
 fontspec_to_meaning = [
+  # D1
   ({'color': '#000000', 'family': 'ABCDEE+Calibri', 'size': '32'}, "h0"),
   ({'color': '#000000', 'family': 'Arial', 'size': '23'}, "h2"),
   ({'color': '#000000', 'family': 'ABCDEE+Calibri', 'size': '18'}, "h3"), # "Register Description"
@@ -19,7 +20,12 @@ fontspec_to_meaning = [
   ({'color': '#000000', 'family': 'ABCDEE+Calibri', 'size': '15'}, "table-cell"),
   ({'color': '#000000', 'family': 'ABCDEE+Calibri', 'size': '13'}, "table-cell"), # used once
   ({'color': '#000000', 'family': 'Calibri', 'size': '120'}, "garbage"),
-#  ({}, ""),
+
+  # R40
+  ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '15'}, "h4"),
+  ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '90'}, "garbage"),
+  ({'color': '#005ebd', 'family': 'ABCDEE+Calibri,Bold', 'size': '19'}, "h3"),
+  ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '23'}, "h2"),
 ]
 
 def hashable_fontspec(d):
@@ -68,6 +74,8 @@ class State(object):
       self.in_table = False
   def process_text(self, text, attrib, xx):
     text = text.replace("Offset :0x", "Offset: 0x")
+    if attrib["meaning"] == "garbage":
+      return
     #print(">" + text + "<")
     # Fix typo
     if self.in_offset:
@@ -75,7 +83,7 @@ class State(object):
           self.in_offset = False
       else:
           self.offset = "{} {}".format(self.offset, text)
-    if text.strip().startswith("Copyright©Allwinner Technology") or text.strip().startswith("Copyright© 2021 Allwinner Technology"):
+    if text.strip().startswith("Copyright©Allwinner Technology") or text.strip().startswith("Copyright© 2021 Allwinner Technology") or text.strip().startswith("Copyright ©"):
       return
     if attrib["meaning"] == "h0" and xx == {"b"}: # and text == "Contents"
       self.finish_this_table()
@@ -86,6 +94,11 @@ class State(object):
     if attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Offset:"):
       self.in_offset = True
       self.offset = text.strip().replace("Offset:", "").strip() # FIXME: append
+      # TODO: It could have parts between "Offset:" and "Register Name:"
+      return
+    elif attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Address:"): # R40
+      self.in_offset = True
+      self.offset = text.strip().replace("Address:", "").strip() # FIXME: append
       # TODO: It could have parts between "Offset:" and "Register Name:"
       return
     elif attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Base Address:"):
@@ -109,6 +122,10 @@ class State(object):
       self.finish_this_table()
     elif attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Register Name: "):
       rname = text.strip().replace("Register Name: ", "")
+      rname = rname.split("(n=")[0] # "NDFC_USER_DATAn(n=0~15)" in R40
+      if rname == "HcPeriodCurrentED(PCED)": # R40
+          rname = "HcPeriodCurrentED" # FIXME
+      rname = rname.replace("_C0~3", "") # in R40 # FIXME
       if self.in_table != rname:
         self.finish_this_table()
         self.start_table(rname)
@@ -214,6 +231,10 @@ def traverse(state, root, indent = 0, fontspecs = []): # fontspecs: [(id, node w
 
     attrib["meaning"] = ""
     if node.tag == "text":
+      #print("TOP", attrib["top"], file=sys.stderr)
+         #return
+      #print("STILL OK", node.text, file=sys.stderr)
+      top = int(attrib["top"])
       attrib = dict([(k,v) for k, v in attrib.items() if k not in ["top", "width", "height"]])
       x = list(attrib.keys())
       #assert x == ["font"] or x == []
@@ -233,6 +254,8 @@ def traverse(state, root, indent = 0, fontspecs = []): # fontspecs: [(id, node w
           attrib["font"] = str(fontspec)
         else:
           del attrib["font"]
+      if top >= 1183: # outside of payload area
+         attrib["meaning"] = "garbage"
       #print("QQ", state.in_table, node.tag, attrib, text)
 
     #if attrib["meaning"] in ["h1", "h2", "h3", "h4", "table-cell"]:
