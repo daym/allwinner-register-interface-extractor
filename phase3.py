@@ -25,7 +25,10 @@ def clean_table(module, header, body):
     else:
       for x in item.replace("Module Name", "Module_Name").replace("Base Address", "Base_Address").split():
         suffix.append(x)
-  if suffix == ['Bit', 'Read/Write', 'Default/Hex', 'Description', 'HCD', 'HC']:
+  if suffix == ['Bit', 'Read/Write', 'Default/Hex', 'Description'] and len(body) >= 1 and [x.strip() for x in body[0]] == ["HCD", "HC"]: # R40-style
+    del body[0]
+    suffix = ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']
+  elif suffix == ['Bit', 'Read/Write', 'Default/Hex', 'Description', 'HCD', 'HC']:
     suffix = ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']
 
   header = (prefix, suffix)
