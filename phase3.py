@@ -16,7 +16,7 @@ del phase2_result.Module_List
 
 #phase2_result__names
 
-def clean_table(module, header, body):
+def clean_table(module, header, body, name):
   prefix = []
   suffix = []
   for item in header:
@@ -25,10 +25,7 @@ def clean_table(module, header, body):
     else:
       for x in item.replace("Module Name", "Module_Name").replace("Base Address", "Base_Address").split():
         suffix.append(x)
-  if suffix == ['Bit', 'Read/Write', 'Default/Hex', 'Description'] and len(body) >= 1 and [x.strip() for x in body[0]] == ["HCD", "HC"]: # R40-style
-    del body[0]
-    suffix = ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']
-  elif suffix == ['Bit', 'Read/Write', 'Default/Hex', 'Description', 'HCD', 'HC']:
+  if suffix == ['Bit', 'Read/Write', 'Default/Hex', 'Description', 'HCD', 'HC']:
     suffix = ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']
 
   header = (prefix, suffix)
@@ -40,6 +37,16 @@ def clean_table(module, header, body):
       del row[-1]
     if row == []:
       continue
+    while len(row) >= 1 and row[0] == " ":
+      del row[0]
+    if len([x for x in row if x == " "]) > 0:
+      nrow = []
+      for i, x in enumerate(row):
+          if len(nrow) >= len(suffix):
+            nrow.append(x)
+          elif x != " ":
+            nrow.append(x)
+      row[:] = nrow
     number_of_access_specs = len([x for x in suffix if x.find("Read/Write") != -1])
     for i in range(number_of_access_specs):
       if len(row) >= 1:
@@ -59,16 +66,6 @@ def clean_table(module, header, body):
            assert suffix == ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']
            row[1] = a1
            row.insert(2, a2)
-    while len(row) >= 1 and row[0] == " ":
-      del row[0]
-    if len([x for x in row if x == " "]) > 0:
-      nrow = []
-      for i, x in enumerate(row):
-          if x != " ":
-            nrow.append(x)
-      row = nrow
-    if len(row) >= 3 and row[1] == " ":
-        assert row[4] == "RQ", row
     while len(row) > len(suffix):
       s = row[len(row) - 1]
       row[len(row) - 2] = row[len(row) - 2] + " " + s
@@ -106,9 +103,9 @@ for n in dir(phase2_result):
     #print("MOD", n, module, file=sys.stderr)
     module_module, module_header, module_body = module
     module_module = None # clean tree
-    module = clean_table(module_module, module_header, module_body)
+    module = clean_table(module_module, module_header, module_body, n)
     module = dict([(k, v) for k, v in unroll_instances(module)])
-  value = clean_table(module, header, body)
+  value = clean_table(module, header, body, n)
   setattr(phase2_result, n, value)
   module, header, body = value
   module = repr(module)
