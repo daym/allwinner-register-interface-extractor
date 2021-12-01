@@ -29,7 +29,7 @@ def clean_table(module, header, body):
     suffix = ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']
 
   header = (prefix, suffix)
-  if body[0:1] == [[]]:
+  while body[0:1] == [[]]:
     del body[0]
   access_possibilities = ["R/W1C", "R/W", "R", "W", "/"]
   for row in body:
@@ -66,7 +66,9 @@ def unroll_instances(module):
   _, header, body = module
   prefix, header = header
   assert header == ["Module_Name", "Base_Address"]
-  #print("BODY", body)
+  while body[-1:] == [[]]:
+     del body[-1]
+  #print("BODY", body, file=sys.stderr)
   for Module_Name, Base_Address in body:
     Module_Name = Module_Name.strip()
     Base_Address = eval(Base_Address.strip(), {})
@@ -77,6 +79,8 @@ def unroll_instances(module):
 registers = {}
 
 for n in dir(phase2_result):
+  if n.startswith("__"):
+    continue
   try:
     module, header, body = getattr(phase2_result, n)
   except ValueError:
@@ -84,6 +88,7 @@ for n in dir(phase2_result):
   except TypeError:
     continue
   if module:
+    #print("MOD", n, module, file=sys.stderr)
     module_module, module_header, module_body = module
     module_module = None # clean tree
     module = clean_table(module_module, module_header, module_body)
@@ -147,6 +152,7 @@ svd_peripherals_by_path = {}
 
 def create_register(table_definition, name, addressOffset, description=None):
   result = etree.Element("register")
+  register_name = name
   result.append(text_element("name", name))
   result.append(text_element("description", description or name))
   # FIXME  result.append(text_element("alternateRegister", primary_registers_by_absolute_address[addressOffset]))
@@ -160,14 +166,18 @@ def create_register(table_definition, name, addressOffset, description=None):
   result.append(fields)
   bits = table_definition.bits
   for (max_bit, min_bit), name, description, access_raw in bits:
+    if register_name == "TWI_EFR" and name == "DBN" and (max_bit, min_bit) == (0, 1): # Errata in Allwinner_R40_User_Manual_V1.0.pdf
+        max_bit, min_bit = 1, 0
     field = etree.Element("field")
     field.append(text_element("name", name.replace("[", "_").replace(":", "_").replace("]", "_")))
+    #print("Q", ((max_bit, min_bit), name, description, access_raw), file=sys.stderr)
     access = {
             "R": "read-only",
             "RO": "read-only",
             "RC": "read-only",
             "RC/W": "read-only",
             "R/W": "read-write",
+            "RW": "read-write",
             "R/w": "read-write",
             "R/WC": "read-write",
             "R/W1C": "read-write",
@@ -177,8 +187,10 @@ def create_register(table_definition, name, addressOffset, description=None):
             "W": "write-only",
             "WC": "write-only",
             "WAC": "write-only",
+            "": None, # ?
     }[access_raw.replace(" ", "").strip()]
-    field.append(text_element("access", access))
+    if access:
+      field.append(text_element("access", access))
     modifiedWriteValues = {
             "R/WC": "clear",
             "WC": "clear",
@@ -233,7 +245,7 @@ svd_root.set("{%s}noNamespaceSchemaLocation" % XS, "CMSIS-SVD.xsd")
 from collections import namedtuple
 Register = namedtuple("Register", ["name", "meta", "header", "bits", "reset_value", "reset_mask"])
 re_definitely_not_name = re.compile("^[0-9]*$")
-re_name = re.compile(r"[0-9]*[A-Z_]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel")
+re_name = re.compile(r"[0-9]*[A-Z_]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en")
 def parse_Register(rspec):
     register_name, (register_meta, register_header), register_fields = rspec
     if register_header[0:1] != ['Bit'] or "Default/Hex" not in register_header:
@@ -292,13 +304,13 @@ def parse_Register(rspec):
                 error("{!r}: Could not parse default value {!r}".format(register_name, default_part))
                 import traceback
         if description:
-            name = description.split()[0] or ""
-            name = name.rstrip(".").rstrip()
+            name = description.replace("hyscale en", "hyscale_en").split()[0] or ""
+            name = name.rstrip(".").rstrip(",").rstrip()
         else:
             name = ""
         if re_name.match(name):
             pass
-        elif not name or name.strip() == "/" or re_definitely_not_name.match(name) or name.strip() in ["one", "remote", "00b", "writes", "per-port", "power", "that", "end", "no", "causing", "is", "1:", "reserved"]:
+        elif not name or name.strip() == "/" or re_definitely_not_name.match(name) or name.strip() in ["one", "remote", "00b", "writes", "per-port", "power", "that", "end", "no", "causing", "is", "1:", "reserved", "32k", "0x0", "upsample", "en"]:
             warning("{!r}: Field name could not be determined: {!r}".format(register_name, register_field))
             continue
         else:
