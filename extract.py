@@ -27,7 +27,8 @@ fontspec_to_meaning = [
   ({'color': '#005ebd', 'family': 'ABCDEE+Calibri,Bold', 'size': '19'}, "h3"),
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '23'}, "h2"),
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '18'}, "garbage-if-empty"), # Otherwise it throws off table header detection--and the text is empty anyway (TODO: check).
-
+  ({'color': '#000000', 'family': 'Times New Roman,BoldItalic', 'size': 15}, "garbage-if-empty"),
+  ({'color': '#000000', 'family': 'Times New Roman', 'size': '15'}, "garbage-if-empty"),
 ]
 
 def hashable_fontspec(d):
@@ -180,7 +181,7 @@ class State(object):
       if attrib["meaning"] == "h4" and self.in_table and self.in_table_header:
           print("{!r}, ".format(text))
       elif attrib["meaning"] == "table-cell":
-        if self.table_left == int(attrib["left"]):
+        if self.table_left is not None and abs(self.table_left -  int(attrib["left"])) <= 1:
           print("], [") # next row
         if text.strip().startswith("Register Name: "):
           rname = text.strip().replace("Register Name: ", "")
@@ -258,7 +259,7 @@ def traverse(state, root, indent = 0, fontspecs = []): # fontspecs: [(id, node w
           attrib["font"] = str(fontspec)
         else:
           del attrib["font"]
-      if top >= 1183: # outside of payload area
+      if top >= 1183 or top < 90: # outside of payload area
          attrib["meaning"] = "garbage"
       #print("QQ", state.in_table, node.tag, attrib, text)
 
