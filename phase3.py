@@ -261,8 +261,8 @@ def create_register(table_definition, name, addressOffset, register_description=
             enums.append((variant_name, n, meaning))
       if len(set([variant_name for variant_name, n, meaning in enums])) == len(enums):
         break
-      else:
-        info("register {!r} field {!r} enum variants {!r} are not unique.".format(register_name, name, enums))
+      #else:
+      #  info("register {!r} field {!r} enum variants {!r} are not unique.".format(register_name, name, enums))
     if register_name == "TWI_EFR" and name == "DBN" and (max_bit, min_bit) == (0, 1): # Errata in Allwinner_R40_User_Manual_V1.0.pdf
         max_bit, min_bit = 1, 0
     field = etree.Element("field")
