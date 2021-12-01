@@ -265,7 +265,6 @@ def create_cpu(suffix, body):
   # icachePresent, dcachePresent
   result.append(text_element("nvicPrioBits", "0")) # FIXME: is mandatory but no idea how to find it
   result.append(text_element("vendorSystickConfig", "false")) # FIXME: does it or does it not implement its own systick timer
-  print("QQQ", body, file=sys.stderr)
   return result
 
 et = etree.ElementTree(svd_root)
