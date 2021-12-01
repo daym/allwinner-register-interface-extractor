@@ -267,7 +267,7 @@ def create_register(table_definition, name, addressOffset, register_description=
             nlines.append((n, meaning))
          lines = nlines
          assert len([1 for n, meaning in lines if re_enum_column_2.match(meaning)]) == 0, (register_name, name, lines)
-         warning("XXX register {!r} field {!r} enum variants are in columns: {!r}".format(register_name, name, lines))
+         #warning("XXX register {!r} field {!r} enum variants are in columns: {!r}".format(register_name, name, lines))
       for n, meaning in lines:
             n = n.strip()
             meaning = meaning.strip()
