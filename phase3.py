@@ -35,8 +35,8 @@ def clean_table(module, header, body):
   for row in body:
     while row[-1:] == [" "] or row[-1:] == ["CCU register list: "]:
       del row[-1]
-    #if row == []:
-    #  continue
+    if row == []:
+      continue
     number_of_access_specs = len([x for x in suffix if x.find("Read/Write") != -1])
     for i in range(number_of_access_specs):
       if len(row) >= 1:
@@ -168,6 +168,8 @@ def create_register(table_definition, name, addressOffset, description=None):
   result.append(fields)
   bits = table_definition.bits
   for (max_bit, min_bit), name, description, access_raw in bits:
+    if description.find("R/W") != -1: # maybe parse error
+      warning("{!r}: field {!r}: Maybe parse error; description={!r}".format(register_name, name, description))
     if register_name == "TWI_EFR" and name == "DBN" and (max_bit, min_bit) == (0, 1): # Errata in Allwinner_R40_User_Manual_V1.0.pdf
         max_bit, min_bit = 1, 0
     field = etree.Element("field")
@@ -312,7 +314,7 @@ def parse_Register(rspec):
             name = ""
         if re_name.match(name):
             pass
-        elif not name or name.strip() == "/" or re_definitely_not_name.match(name) or name.strip() in ["one", "remote", "00b", "writes", "per-port", "power", "that", "end", "no", "causing", "is", "1:", "reserved", "32k", "0x0", "upsample", "en"]:
+        elif not name or name.strip() == "/" or re_definitely_not_name.match(name) or name.strip() in ["one", "remote", "00b", "writes", "per-port", "power", "that", "end", "no", "causing", "is", "1:", "reserved", "32k", "0x0", "0x1", "upsample", "en"]:
             warning("{!r}: Field name could not be determined: {!r}".format(register_name, register_field))
             continue
         else:
