@@ -367,12 +367,16 @@ def create_cpu(suffix, body):
   cpu_fpuPresent = False
   for item in body:
       item = item.replace("per CPU", "per C")
-      if item.endswith("Processor") or item.endswith("CPU"):
+      item = item.strip()
+      if item.startswith("VFPv4 floating point"):
+          cpu_fpuPresent = True
+      elif item.startswith("XuanTie C906 RISC-V CPU"): # the latter is RV64GCV
+          cpu_fpuPresent = True
+          cpu_name = item
+      elif item.endswith("Processor") or item.endswith("CPU"):
           cpu_name = item.replace("Processor", "").replace("CPU", "").strip()
           if cpu_name.endswith("ARM Cortex-A7"):
               cpu_name = "CA7"
-      elif item.startswith("VFPv4 floating point") or item.startswith("XuanTie C906 RISC-V CPU"): # the latter is RV64GCV
-          cpu_fpuPresent = True
   result.append(text_element("name", cpu_name)) # I think technically it's "selectable" endian.
   result.append(text_element("revision", "0")) # yeah... no.
   result.append(text_element("endian", "little")) # I think technically it's "selectable" endian.
