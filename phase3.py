@@ -354,6 +354,7 @@ def create_register(table_definition, name, addressOffset, register_description=
         if len(enumeratedValues) > 0:
           field.append(enumeratedValues)
     fields.append(field)
+  field_names = [field.find('./name').text for field in fields]
   return result
 
 def create_cpu(suffix, body):
@@ -430,7 +431,7 @@ re_definitely_not_name = re.compile("^[0-9]*$")
 re_name = re.compile(r"[0-9]*[A-Z_]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en")
 re_name_read = re.compile(r"^[(]read[)]([0-9]*[A-Z_a-z]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en)$")
 re_name_write = re.compile(r"^[(]write[)]([0-9]*[A-Z_a-z]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en)$")
-def parse_Register(rspec):
+def parse_Register(rspec, field_word_count = 1):
     register_name, (register_meta, register_header), register_fields = rspec
     if register_header[0:1] != ['Bit'] or "Default/Hex" not in register_header:
         warning("{!r}: Unknown 'register' header {!r}".format(register_name, register_header))
@@ -488,7 +489,10 @@ def parse_Register(rspec):
                 error("{!r}: Could not parse default value {!r}".format(register_name, default_part))
                 import traceback
         if description:
-            name = description.replace("hyscale en", "hyscale_en").split()[0] or ""
+            words = description.replace("hyscale en", "hyscale_en").split()
+            if words[0:1] == ["This"]:
+               del words[0]
+            name = "_".join(words[0:field_word_count]) or ""
             name = name.rstrip(".").rstrip(",").rstrip()
             name = name.replace("(Read)", "(read)")
             m = re_name_read.match(name)
@@ -501,14 +505,19 @@ def parse_Register(rspec):
             name = ""
         if re_name.match(name):
             pass
-        elif not name or name.strip() == "/" or re_definitely_not_name.match(name) or name.strip() in ["one", "remote", "00b", "writes", "per-port", "power", "that", "end", "no", "causing", "is", "1:", "reserved", "32k", "0x0", "0x1", "upsample", "en"]:
+        elif not name or name.strip() == "/" or re_definitely_not_name.match(name) or name.lower().strip() in ["one", "remote", "00b", "writes", "per-port", "power", "that", "end", "no", "causing", "is", "1:", "reserved", "32k", "0x0", "0x1", "upsample", "en"]:
             warning("{!r}: Field name could not be determined: {!r}".format(register_name, register_field))
             continue
         else:
             assert re_name.match(name), name
         name = name.replace(".", "_") # XXX shouldn't svd2rust do that?
         bits.append(((max_bit, min_bit), name, description, access))
-
+    field_names = [name for _, name, _, _ in bits]
+    if len(set(field_names)) != len(field_names):
+        if field_word_count < 5:
+            return parse_Register(rspec, field_word_count = field_word_count + 1)
+        else:
+            warning("{!r}: Field names are not unique: {!r}".format(register_name, field_names))
     return Register(name = register_name, meta = register_meta, header = register_header, bits = bits, reset_value = default_value, reset_mask = default_mask)
 
 re_N_unicode_range = re.compile(r"N\s*=\s*([0-9])+–([0-9]+)")
