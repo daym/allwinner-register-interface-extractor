@@ -184,17 +184,18 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
         suffix = q[parts].strip()
         name = "{}_{}".format(name, suffix)
         parts = parts + 1
-  name = name.replace("-bit", "_bit").replace("-byte", "_byte").rstrip(",").rstrip(";").rstrip(".")
+  name = name.replace("-bit", "_bit").replace("-byte", "_byte").replace("-wire", "_wire").rstrip(",").rstrip(";").rstrip(".")
   #if name.startswith("the_"):
   #  name = name[len("the_"):]
   if len(name) == 0:
     name = key
-  name = "_" + name[0].lower() + name[1:]
+  name = "_" + name
   for a, b in [
     ("*", "_times_"),
     ("‘", "_quote_"),
     ("’", "_quote_"),
     ("+", "_plus_"),
+    ("_DE-", "_de"),
     ("_de-", "_de"),
     ("_no-", "_no_"),
     ("_re-", "_re_"),
@@ -237,7 +238,9 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
     ("°", "_deg_"),
     (";", "_semicolon_"),
   ]:
-     name = name.replace(a, b)
+     def upper2(a):
+        return a[0:2].upper() + a[2:]
+     name = name.replace(a, b).replace(upper2(a), b)
   if name.startswith("_"):
      name = name[len("_"):]
   if not name:
