@@ -184,19 +184,33 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
         suffix = q[parts].strip()
         name = "{}_{}".format(name, suffix)
         parts = parts + 1
-  name = name.replace("-bit", "_bit")
+  name = name.replace("-bit", "_bit").replace("-byte", "_byte").rstrip(",").rstrip(";").rstrip(".")
+  #if name.startswith("the_"):
+  #  name = name[len("the_"):]
   if len(name) == 0:
     name = key
+  name = "_" + name[0].lower() + name[1:]
   for a, b in [
     ("*", "_times_"),
     ("‘", "_quote_"),
     ("’", "_quote_"),
     ("+", "_plus_"),
+    ("_dE-", "_de"), # sic
     ("_de-", "_de"),
     ("_no-", "_no_"),
+    ("_re-", "_re_"),
     ("_read-", "_read_"),
     ("_write-", "_write_"),
     ("_one-", "_one_"),
+    ("_single-", "_single_"),
+    ("_left-", "_left_"),
+    ("_right-", "_right_"),
+    ("_full-", "_full_"),
+    ("_half-", "_half_"),
+    ("_set-", "_set_"),
+    ("_non-", "_non_"),
+    ("_u-law", "_ulaw"),
+    ("_A-law", "_Alaw"),
     ("-", "_minus_"),
     ("=", "_equals_"),
     (".", "_point_"),
@@ -225,6 +239,8 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
     (";", "_semicolon_"),
   ]:
      name = name.replace(a, b)
+  if name.startswith("_"):
+     name = name[len("_"):]
   if not name:
      name = key
   if re_digit.match(name):
@@ -300,6 +316,8 @@ def create_register(table_definition, name, addressOffset, register_description=
       for n, meaning in lines:
             n = n.strip()
             meaning = meaning.strip()
+            if meaning.strip().lower() in ["reserved", "revered"]: # sic
+              continue
             variant_name = generate_enumeratedValue_name(n, meaning or n, parts = counter)
             if variant_name is None:
               warning("register {!r} field {!r} enum variants are not unique. Giving up.".format(register_name, name))
@@ -357,7 +375,7 @@ def create_register(table_definition, name, addressOffset, register_description=
     if enums:
         enumeratedValues = etree.Element("enumeratedValues")
         for variant_name, n, meaning in enums:
-          if n.strip().lower() in ["other", "others"] and meaning.lower() == "reserved":
+          if n.strip().lower() in ["other", "others"] and meaning.lower() in ["reserved", "revered"]: # sic
               continue
           num_bits = max_bit - min_bit + 1
           assert not (len(n) == 3 and n.startswith("0x") and num_bits == 3), (n, meaning, name, register_name)
@@ -540,7 +558,7 @@ def parse_Register(rspec, field_word_count = 1):
               info("{!r}: Guessed field name {!r}".format(register_name, name))
         else:
             name = ""
-        if name.lower().strip() in ["reserved"]:
+        if name.lower().strip() in ["reserved", "revered"]: # sic
             continue
         elif re_name.match(name):
             pass
