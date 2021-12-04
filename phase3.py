@@ -513,9 +513,11 @@ def parse_Register(rspec, field_word_count = 1):
               info("{!r}: Guessed field name {!r}".format(register_name, name))
         else:
             name = ""
-        if re_name.match(name):
+        if name.lower().strip() in ["reserved"]:
+            continue
+        elif re_name.match(name):
             pass
-        elif not name or name.strip() == "/" or re_definitely_not_name.match(name) or name.lower().strip() in ["one", "remote", "00b", "writes", "per-port", "power", "that", "end", "no", "causing", "is", "1:", "reserved", "32k", "0x0", "0x1", "upsample", "en"]:
+        elif not name or name.strip() == "/" or re_definitely_not_name.match(name) or name.lower().strip() in ["one", "remote", "00b", "writes", "per-port", "power", "that", "end", "no", "causing", "is", "1:", "32k", "0x0", "0x1", "upsample", "en"]:
             warning("{!r}: Field name could not be determined: {!r} (tried: {!r}".format(register_name, register_field, name))
             continue
         else:
