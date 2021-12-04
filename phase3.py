@@ -170,6 +170,8 @@ re_digit = re.compile(r"^[0-9]")
 
 def generate_enumeratedValue_name(key, meaning, parts = 1):
   q = meaning.split()
+  while len(q) > 0 and q[0].lower() in ["using", "the"]:
+     del q[0]
   if len(q) < parts:
     return None
   name = "_".join(q[0:parts]).rstrip(",").rstrip(";").rstrip(".").strip()
@@ -180,7 +182,7 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
     #elif suffix == "not":
     #  name = "{}_{}".format(name, suffix)
     else:
-      while len(q) > parts and ("_" + name).lower().endswith("_no") or ("_" + name).lower().endswith("_not") or ("_" + name).lower().endswith("_is"):
+      while len(q) > parts and ("_" + name).lower().endswith("_no") or ("_" + name).lower().endswith("_not") or ("_" + name).lower().endswith("_is") or ("_" + name).lower().endswith("_between") or ("_" + name).lower().endswith("_with") or ("_" + name).lower().endswith("_without") or ("_" + name).lower().endswith("_will") or ("_" + name).lower().endswith("_always"):
         suffix = q[parts].strip()
         name = "{}_{}".format(name, suffix)
         parts = parts + 1
@@ -195,6 +197,8 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
     ("‘", "_quote_"),
     ("’", "_quote_"),
     ("+", "_plus_"),
+    ("_j-state", "_j_state"),
+    ("_k-state", "_k_state"),
     ("_bi-", "_bi"),
     ("_by-", "_by"),
     ("_DE-", "_de"),
