@@ -184,7 +184,7 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
     else:
       while len(q) > parts:
         s = ("_" + name).lower()
-        if s.endswith("_no") or s.endswith("_not") or s.endswith("_is") or s.endswith("_between") or s.endswith("_with") or s.endswith("_without") or s.endswith("_will") or s.endswith("_always") or s.endswith("_don’t") or s.endswith("_must") or s.endswith("_a"):
+        if s.endswith("_no") or s.endswith("_not") or s.endswith("_is") or s.endswith("_between") or s.endswith("_with") or s.endswith("_without") or s.endswith("_will") or s.endswith("_always") or s.endswith("_don’t") or s.endswith("_must") or s.endswith("_a") or s.endswith("_use") or s.endswith("_the") or s.endswith("do"):
           suffix = q[parts].strip()
           name = "{}_{}".format(name, suffix)
           parts = parts + 1
