@@ -177,10 +177,14 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
     suffix = q[parts].strip()
     if suffix.startswith("k") or suffix.startswith("mV") or suffix.startswith("dB") or suffix == "V" or suffix == "ms" or suffix.startswith("uA") or suffix.startswith("kHz") or suffix == "s" or suffix == "cycles" or suffix == "sample" or suffix == "bit" or suffix == "bits": # keep units
       name = "{}_{}".format(name, suffix)
-    elif suffix == "not":
-      name = "{}_{}".format(name, suffix)
-    elif name.lower() in ["no", "not"]:
-      name = "{}_{}".format(name, suffix)
+    #elif suffix == "not":
+    #  name = "{}_{}".format(name, suffix)
+    else:
+      while len(q) > parts and ("_" + name).lower().endswith("_no") or ("_" + name).lower().endswith("_not") or ("_" + name).lower().endswith("_is"):
+        suffix = q[parts].strip()
+        name = "{}_{}".format(name, suffix)
+        parts = parts + 1
+  name = name.replace("-bit", "_bit")
   if len(name) == 0:
     name = key
   for a, b in [
@@ -189,6 +193,10 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
     ("’", "_quote_"),
     ("+", "_plus_"),
     ("_de-", "_de"),
+    ("_no-", "_no_"),
+    ("_read-", "_read_"),
+    ("_write-", "_write_"),
+    ("_one-", "_one_"),
     ("-", "_minus_"),
     ("=", "_equals_"),
     (".", "_point_"),
@@ -234,6 +242,19 @@ def create_enumeratedValue(name, key, meaning):
 re_enum_column_2 = re.compile(r"^([^:]*)  (Others|Other|1X|0x[0-9A-F]+):(.*)")
 
 svd_peripherals_by_path = {}
+
+def split_at_is(s):
+     if s is None:
+       return "", s
+     i = s.find("_is_")
+     if i != -1:
+       return s[:i], s[i + len("_is_"):]
+     else:
+       i = s.find("_mode_")
+       if i != -1:
+         return s[:i], s[i + len("_mode_"):]
+       else:
+         return "", s
 
 def create_register(table_definition, name, addressOffset, register_description=None):
   result = etree.Element("register")
@@ -355,9 +376,14 @@ def create_register(table_definition, name, addressOffset, register_description=
           enumeratedValue = create_enumeratedValue(variant_name, n, meaning or n)
           enumeratedValues.append(enumeratedValue)
         if len(enumeratedValues) > 0:
+          prefixes = [split_at_is(v.find("./name").text)[0] for v in enumeratedValues]
+          if len(set([x for x in prefixes if x != ""])) <= 1: # always the same prefix
+            shorter_variants = [split_at_is(v.find("./name").text)[1] for v in enumeratedValues]
+            if len(shorter_variants) == len(set(shorter_variants)):
+               for enumeratedValue in enumeratedValues:
+                   _, enumeratedValue.find("./name").text = split_at_is(enumeratedValue.find("./name").text)
           field.append(enumeratedValues)
     fields.append(field)
-  field_names = [field.find('./name').text for field in fields]
   return result
 
 def create_cpu(suffix, body):
