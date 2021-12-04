@@ -16,7 +16,7 @@ phase3_host.svd: phase2_result.py phase3.py
 	python3 phase3.py $< >$@.new && mv $@.new $@
 
 lib.rs: phase3_host.svd partsvol1/a.xml Makefile
-	svd2rust --target "$(subst CA7,none,$(subst XuanTie C906 RISC-V CPU,riscv,$(shell xmllint --xpath 'string(/device/cpu/name)' $<)))" -i phase3_host.svd
+	svd2rust --target "$(subst CA53,none,$(subst CA7,none,$(subst XuanTie C906 RISC-V CPU,riscv,$(shell xmllint --xpath 'string(/device/cpu/name)' $<))))" -i phase3_host.svd
 
 clean:
 	rm -rf partsvol1

@@ -454,6 +454,8 @@ def create_cpu(suffix, body):
           cpu_name = item.replace("Processor", "").replace("CPU", "").strip()
           if cpu_name.endswith("ARM Cortex-A7"):
               cpu_name = "CA7"
+          elif cpu_name.endswith("ARM Cortex-A53"):
+              cpu_name = "CA53"
   result.append(text_element("name", cpu_name)) # I think technically it's "selectable" endian.
   result.append(text_element("revision", "0")) # yeah... no.
   result.append(text_element("endian", "little")) # I think technically it's "selectable" endian.
