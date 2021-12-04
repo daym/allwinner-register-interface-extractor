@@ -182,17 +182,22 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
     #elif suffix == "not":
     #  name = "{}_{}".format(name, suffix)
     else:
-      while len(q) > parts and ("_" + name).lower().endswith("_no") or ("_" + name).lower().endswith("_not") or ("_" + name).lower().endswith("_is") or ("_" + name).lower().endswith("_between") or ("_" + name).lower().endswith("_with") or ("_" + name).lower().endswith("_without") or ("_" + name).lower().endswith("_will") or ("_" + name).lower().endswith("_always"):
-        suffix = q[parts].strip()
-        name = "{}_{}".format(name, suffix)
-        parts = parts + 1
-  name = name.replace("-bit", "_bit").replace("-byte", "_byte").replace("-wire", "_wire").rstrip(",").rstrip(";").rstrip(".")
+      while len(q) > parts:
+        s = ("_" + name).lower()
+        if s.endswith("_no") or s.endswith("_not") or s.endswith("_is") or s.endswith("_between") or s.endswith("_with") or s.endswith("_without") or s.endswith("_will") or s.endswith("_always") or s.endswith("_don’t") or s.endswith("_must") or s.endswith("_a"):
+          suffix = q[parts].strip()
+          name = "{}_{}".format(name, suffix)
+          parts = parts + 1
+        else:
+          break
+  name = name.replace("-bit", "_bit").replace("-byte", "_byte").replace("-wire", "_wire").strip().strip(",").strip(";").rstrip(".")
   #if name.startswith("the_"):
   #  name = name[len("the_"):]
   if len(name) == 0:
     name = key
   name = "_" + name
   for a, b in [
+    ("_don’t", "_dont"),
     ("*", "_times_"),
     ("‘", "_quote_"),
     ("’", "_quote_"),
