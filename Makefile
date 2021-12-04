@@ -7,7 +7,7 @@ partsvol1/a.xml: $(PPRVOL1)
 	mkdir -p partsvol1
 	pdftohtml -nodrm -xml $< partsvol1/a >/dev/null
 	# Invalid multibyte character
-	sed -i -e 's;\xcb\xce\xcc\xe5;;' partsvol1/a.xml
+	sed -i -e 's;\xcb\xce\xcc\xe5;;' -e 's;\xce\xa2\xc8\xed\xd1\xc5\xba\xda;;' partsvol1/a.xml
 
 phase2_result.py: partsvol1/a.xml extract.py
 	./extract.py $< $(PPRVOL1) > "$@".new && mv "$@".new "$@"
