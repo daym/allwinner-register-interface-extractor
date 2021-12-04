@@ -259,7 +259,7 @@ def create_enumeratedValue(name, key, meaning):
   result.append(text_element("value", key))
   return result
 
-re_enum_column_2 = re.compile(r"^([^:]*)  (Others|Other|1X|0x[0-9A-F]+):(.*)")
+re_enum_column_2 = re.compile(r"^([^:]*)  (Others|Other|1X|0x[0-9A-F]+|[01]+):(.*)")
 
 svd_peripherals_by_path = {}
 
@@ -311,10 +311,13 @@ def create_register(table_definition, name, addressOffset, register_description=
          nlines = []
          for n, meaning in lines:
             m = re_enum_column_2.search(meaning)
-            if m:
+            while m:
               meaning, n_2, meaning_2 = m.group(1), m.group(2), m.group(3)
               assert not re_enum_column_2.match(meaning)
-              nlines.append((n_2, meaning_2))
+              nlines.append((n, meaning))
+              n = n_2
+              meaning = meaning_2
+              m = re_enum_column_2.search(meaning)
             nlines.append((n, meaning))
          lines = nlines
          assert len([1 for n, meaning in lines if re_enum_column_2.match(meaning)]) == 0, (register_name, name, lines)
