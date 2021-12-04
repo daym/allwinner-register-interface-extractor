@@ -335,6 +335,8 @@ def create_register(table_definition, name, addressOffset, register_description=
     if enums:
         enumeratedValues = etree.Element("enumeratedValues")
         for variant_name, n, meaning in enums:
+          if n.strip().lower() in ["other", "others"] and meaning.lower() == "reserved":
+              continue
           num_bits = max_bit - min_bit + 1
           assert not (len(n) == 3 and n.startswith("0x") and num_bits == 3), (n, meaning, name, register_name)
           if n.startswith("0x"):
@@ -347,7 +349,7 @@ def create_register(table_definition, name, addressOffset, register_description=
               if len(n) == num_bits and len([x for x in n if x not in ["0", "1"]]) == 0:
                   n = "0b{}".format(n)
               else:
-                  warning("Could not interpret enumeratedValue {!r}: {!r} in field {!r} in register {!r}".format(n, meaning, name, register_name))
+                  warning("Could not interpret enumeratedValue {!r}: {!r} in field {!r} in register {!r} (num_bits = {!r})".format(n, meaning, name, register_name, num_bits))
                   continue
           enumeratedValue = create_enumeratedValue(variant_name, n, meaning or n)
           enumeratedValues.append(enumeratedValue)
@@ -428,7 +430,7 @@ svd_root.set("{%s}noNamespaceSchemaLocation" % XS, "CMSIS-SVD.xsd")
 from collections import namedtuple
 Register = namedtuple("Register", ["name", "meta", "header", "bits", "reset_value", "reset_mask"])
 re_definitely_not_name = re.compile("^[0-9]*$")
-re_name = re.compile(r"[0-9]*[A-Z_]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en")
+re_name = re.compile(r"^([0-9]*[A-Z_0-9]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en)$")
 re_name_read = re.compile(r"^[(]read[)]([0-9]*[A-Z_a-z]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en)$")
 re_name_write = re.compile(r"^[(]write[)]([0-9]*[A-Z_a-z]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en)$")
 def parse_Register(rspec, field_word_count = 1):
@@ -489,27 +491,35 @@ def parse_Register(rspec, field_word_count = 1):
                 error("{!r}: Could not parse default value {!r}".format(register_name, default_part))
                 import traceback
         if description:
-            words = description.replace("hyscale en", "hyscale_en").split()
-            if words[0:1] == ["This"]:
-               del words[0]
-            name = "_".join(words[0:field_word_count]) or ""
-            name = name.rstrip(".").rstrip(",").rstrip()
-            name = name.replace("(Read)", "(read)")
-            m = re_name_read.match(name)
-            if m: # "(read)A" vs "(write)B"
-              name = "{}_R".format(m.group(1))
-            m = re_name_write.match(name)
-            if m: # "(read)A" vs "(write)B"
-              name = "{}_W".format(m.group(1))
+           words = description.replace("hyscale en", "hyscale_en").split("\n", 1)[0].split()
+           stripped = False
+           while len(words) > 0 and words[0] in ["This", "field", "bit", "is", "are", "set", "to", "indicates", "indicate", "specifies", "used", "whether", "there", "any", "the", "a", "value", "which", "loaded", "into"]:
+              del words[0]
+              stripped = True
+           name = "_".join(words[0:field_word_count]) or ""
+           name = name.rstrip(".").rstrip(",").rstrip(":").rstrip()
+           name = name.replace("(Read)", "(read)")
+           m = re_name_read.match(name)
+           if m: # "(read)A" vs "(write)B"
+             name = "{}_R".format(m.group(1))
+           m = re_name_write.match(name)
+           if m: # "(read)A" vs "(write)B"
+             name = "{}_W".format(m.group(1))
+           name = name.upper()
+           #print("NAME", name, file=sys.stderr)
+           if not re_name.match(name):
+             name = ""
+           if stripped:
+              info("{!r}: Guessed field name {!r}".format(register_name, name))
         else:
             name = ""
         if re_name.match(name):
             pass
         elif not name or name.strip() == "/" or re_definitely_not_name.match(name) or name.lower().strip() in ["one", "remote", "00b", "writes", "per-port", "power", "that", "end", "no", "causing", "is", "1:", "reserved", "32k", "0x0", "0x1", "upsample", "en"]:
-            warning("{!r}: Field name could not be determined: {!r}".format(register_name, register_field))
+            warning("{!r}: Field name could not be determined: {!r} (tried: {!r}".format(register_name, register_field, name))
             continue
         else:
-            assert re_name.match(name), name
+            name = "" # assert re_name.match(name), name
         name = name.replace(".", "_") # XXX shouldn't svd2rust do that?
         bits.append(((max_bit, min_bit), name, description, access))
     field_names = [name for _, name, _, _ in bits]
