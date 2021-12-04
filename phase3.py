@@ -329,6 +329,8 @@ def create_register(table_definition, name, addressOffset, register_description=
               warning("register {!r} field {!r} enum variants are not unique. Giving up.".format(register_name, name))
               enums = []
               break
+            if variant_name.lower().startswith(name.lower() + "_") and len(variant_name.lower()) > len(name.lower() + "_"):
+                variant_name = variant_name[len(name.lower() + "_"):]
             enums.append((variant_name, n, meaning))
       if len(set([variant_name for variant_name, n, meaning in enums])) == len(enums):
         break
