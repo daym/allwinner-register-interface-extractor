@@ -271,6 +271,8 @@ def split_at_is(s):
        return s[:i], s[i + len("_is_"):]
      else:
        i = s.find("_mode_")
+       if i == -1:
+         i = s.find("_Mode_")
        if i != -1:
          return s[:i], s[i + len("_mode_"):]
        else:
