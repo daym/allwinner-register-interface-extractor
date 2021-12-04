@@ -195,7 +195,6 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
     ("‘", "_quote_"),
     ("’", "_quote_"),
     ("+", "_plus_"),
-    ("_dE-", "_de"), # sic
     ("_de-", "_de"),
     ("_no-", "_no_"),
     ("_re-", "_re_"),
