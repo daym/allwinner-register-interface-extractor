@@ -177,7 +177,7 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
   name = "_".join(q[0:parts]).rstrip(",").rstrip(";").rstrip(".").strip()
   if len(q) > parts:
     suffix = q[parts].strip()
-    if suffix.startswith("k") or suffix.startswith("mV") or suffix.startswith("dB") or suffix == "V" or suffix == "ms" or suffix.startswith("uA") or suffix.startswith("kHz") or suffix == "s" or suffix == "cycles" or suffix == "sample" or suffix == "bit" or suffix == "bits": # keep units
+    if suffix.startswith("k") or suffix.startswith("mV") or suffix.startswith("dB") or suffix == "V" or suffix == "ms" or suffix.startswith("uA") or suffix.startswith("kHz") or suffix in ["s", "cycles", "sample", "samples", "bit", "bits", "disable", "enable"]: # keep units and important suffixes
       name = "{}_{}".format(name, suffix)
     #elif suffix == "not":
     #  name = "{}_{}".format(name, suffix)
