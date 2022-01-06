@@ -109,6 +109,8 @@ for n in dir(phase2_result):
     continue
   except TypeError:
     continue
+  #if not module: # A64
+  #  module = "unsorted", ["Module_Name", "Base_Address"], [["x", "0"]] # FIXME
   if module:
     module_module, module_header, module_body = module
     module_module = None # clean tree
@@ -364,6 +366,7 @@ def create_register(table_definition, name, addressOffset, register_description=
             "RC": "read-only",
             "RC/W": "read-only",
             "R/W": "read-write",
+            "W/R": "read-write", # ???
             "RW": "read-write",
             "R/w": "read-write",
             "R/WC": "read-write",
@@ -374,6 +377,7 @@ def create_register(table_definition, name, addressOffset, register_description=
             "W": "write-only",
             "WC": "write-only",
             "WAC": "write-only",
+            "WO": "write-only", # A64
             "": None, # ?
     }[access_raw.replace(" ", "").strip()]
     if access:
@@ -519,7 +523,7 @@ re_name_write = re.compile(r"^[(]write[)]([0-9]*[A-Z_a-z]+|bist_en_a|vc_addr|vc_
 def parse_Register(rspec, field_word_count = 1):
     register_name, (register_meta, register_header), register_fields = rspec
     if register_header[0:1] != ['Bit'] or "Default/Hex" not in register_header:
-        warning("{!r}: Unknown 'register' header {!r}".format(register_name, register_header))
+        warning("{!r}: Unknown 'register' header {!r}, fields {!r}".format(register_name, register_header, register_fields))
         return None
     bits = []
     default_value = 0
@@ -561,16 +565,20 @@ def parse_Register(rspec, field_word_count = 1):
                 warning("{!r}: Invalid field {!r}: Bitrange error".format(register_name, register_field))
                 continue
         default_part = default_part.strip().rstrip(".")
+        default_part = default_part.split("(")[0] # strip description
         if default_part.strip() in ["/", "None", "UDF", ""]:
             pass
         else:
             try:
-                default_part = eval(default_part, {})
-                if default_part < 2**(max_bit - min_bit + 1):
-                    default_mask |= (2**(max_bit - min_bit + 1) - 1) << min_bit
-                    default_value |= default_part << min_bit
-                else:
-                    warning("{!r}: Default {} for field {!r} does not fit into slot with bitrange {}:{}".format(register_name, default_part, register_field, max_bit, min_bit))
+                try:
+                  default_part = int(default_part, 16)
+                  if default_part < 2**(max_bit - min_bit + 1):
+                      default_mask |= (2**(max_bit - min_bit + 1) - 1) << min_bit
+                      default_value |= default_part << min_bit
+                  else:
+                      warning("{!r}: Default {} for field {!r} does not fit into slot with bitrange {}:{}".format(register_name, default_part, register_field, max_bit, min_bit))
+                except ValueError:
+                  warning("{!r}: Default {} for field {!r} was not understood".format(register_name, default_part, register_field))
             except (NameError, SyntaxError):
                 error("{!r}: Could not parse default value {!r}".format(register_name, default_part))
                 import traceback
