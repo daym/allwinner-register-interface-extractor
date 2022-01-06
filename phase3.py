@@ -193,7 +193,7 @@ def generate_enumeratedValue_name(key, meaning, parts = 1):
           parts = parts + 1
         else:
           break
-  name = name.replace("-bit", "_bit").replace("-byte", "_byte").replace("-wire", "_wire").strip().strip(",").strip(";").rstrip(".").replace("“", "").replace("”", "")
+  name = name.replace("-bit", "_bit").replace("-byte", "_byte").replace("-wire", "_wire").strip().strip(",").strip(";").rstrip(".").rstrip(":").replace("“", "").replace("”", "")
   #if name.startswith("the_"):
   #  name = name[len("the_"):]
   if len(name) == 0:
