@@ -571,9 +571,17 @@ def parse_Register(rspec, field_word_count = 1):
         if description:
            words = description.replace("hyscale en", "hyscale_en").split("\n", 1)[0].split()
            stripped = False
-           while len(words) > 0 and words[0] in ["This", "field", "bit", "is", "are", "set", "to", "indicates", "indicate", "specifies", "used", "whether", "there", "any", "the", "a", "value", "which", "loaded", "into"]:
+           while len(words) > 0 and words[0] in ["This", "field", "bit", "is", "are", "set", "to", "indicates", "indicate", "specifies", "used", "whether", "there", "any", "the", "a", "value", "which", "loaded", "into", "The", "the"]:
               del words[0]
               stripped = True
+           if words[0:2] == ["address", "of"]:
+              del words[0]
+              del words[0]
+           elif words[0:3] == ["base", "address", "of"]:
+              del words[0]
+              del words[0]
+           while len(words) > 0 and words[0] in ["the", "a"]:
+              del words[0]
            name = "_".join(words[0:field_word_count]) or ""
            name = name.rstrip(".").rstrip(",").rstrip(":").rstrip()
            name = name.replace("(Read)", "(read)")
