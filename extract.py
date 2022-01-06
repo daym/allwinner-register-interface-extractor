@@ -23,6 +23,7 @@ fontspec_to_meaning = [
 
   # R40, A64
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '15'}, "h4"),
+  ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '16'}, "h4"), # R40
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '90'}, "garbage"),
   ({'color': '#005ebd', 'family': 'ABCDEE+Calibri,Bold', 'size': '19'}, "h3"),
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '21'}, "h3"), # CPU Architecture
@@ -89,7 +90,7 @@ class State(object):
   def process_text(self, text, attrib, xx):
     if self.in_register_name_multipart: # A64. It has "Register Name: <b>Foo</b>"
       assert (attrib["meaning"] == "h4" and xx == {"b"}) or attrib["meaning"] == "table-cell" or attrib["meaning"] == "h3", (self.page_number, attrib, xx)
-      if text.strip():
+      if text.strip() and self.in_table_header:
         # Note: This has another copy!
         rname = text.strip()
         rname = rname.split("(n=")[0] # "NDFC_USER_DATAn(n=0~15)" in R40
@@ -97,6 +98,7 @@ class State(object):
             rname = "HcPeriodCurrentED" # FIXME
         rname = rname.replace("_C0~3", "") # in R40 # FIXME
         if self.in_table != rname:
+          #assert text.strip() != "Read/Write"
           self.finish_this_table()
           self.start_table(rname)
           assert self.offset is not None, (rname, self.page_number)
@@ -109,7 +111,7 @@ class State(object):
       return
     if attrib["meaning"] == "garbage-if-empty" and text.strip() == "":
       return
-    #print(">" + text + "<")
+    #print(">" + text + "<", attrib, xx, file=sys.stderr)
     if self.h3 and self.h3.lower().endswith("register description") and attrib["meaning"] == "table-cell":
       if self.in_table and self.in_table_header:
         if self.table_header_autobolder:
