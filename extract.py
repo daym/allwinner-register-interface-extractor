@@ -61,6 +61,7 @@ class State(object):
     self.offset = None
     self.in_offset = False
     self.h3 = None
+    self.page_number = None
   def start_table(self, rname):
       self.finish_this_table()
       print()
@@ -145,7 +146,7 @@ class State(object):
       if self.in_table != rname:
         self.finish_this_table()
         self.start_table(rname)
-        assert self.offset is not None, rname
+        assert self.offset is not None, (rname, self.page_number)
         print("{!r},".format("Offset: " + self.offset))
         self.offset = None
       return
@@ -239,6 +240,8 @@ def traverse(state, root, indent = 0, fontspecs = []): # fontspecs: [(id, node w
     if xx == {"b"}:
        if not any(True for xnode in node.iterchildren() if xnode.tag == "b" and xnode.text.strip() != ""): # "foo <b> </b>"
          xx = set()
+    if node.tag == "page":
+       state.page_number = dict(node.attrib)["number"]
     if node.tag == "fontspec":
       # need to mutate because scoping rules are that way
       xnode = dict(node.attrib)
