@@ -63,6 +63,7 @@ class State(object):
     self.offset = None
     self.in_offset = False
     self.h3 = None
+    self.h4 = None
     self.page_number = None
     self.in_register_name_multipart = False
     self.table_header_autobolder = False
@@ -94,6 +95,8 @@ class State(object):
         self.in_register_name_multipart = False
         # Note: This has another copy!
         rname = text.strip()
+        if text.strip() == "Bit": # entirely missing name
+          rname = "".join(c for c in self.h4 if c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_")
         rname = rname.split("(n=")[0] # "NDFC_USER_DATAn(n=0~15)" in R40
         if rname == "HcPeriodCurrentED(PCED)": # R40
             rname = "HcPeriodCurrentED" # FIXME
@@ -105,7 +108,8 @@ class State(object):
           assert self.offset is not None, (rname, self.page_number)
           print("{!r},".format("Offset: " + self.offset))
           self.offset = None
-        return
+        if text.strip() != "Bit":
+          return
     text = text.replace("Offset :0x", "Offset: 0x")
     if attrib["meaning"] == "garbage":
       return
@@ -200,19 +204,17 @@ class State(object):
       #    self.finish_this_table()
     if self.in_table and self.in_table_header and text.strip() != "":
       if self.h3 and (self.h3.lower().rstrip().endswith("register description") or self.h3.lower().rstrip().endswith("register list")) and attrib["meaning"] == "table-cell":
-         if self.in_table and self.in_table_header:
            if self.table_header_autobolder:
              # A64 does not bold most table headers, so we have to fake it here.
-             if text.strip():
-               xx.add("b")
-               attrib["meaning"] = "h4"
+             xx.add("b")
+             attrib["meaning"] = "h4"
            else:
              self.in_table_header = False
              print("], [[")
 
       if attrib["meaning"] == "h4" and len(self.table_columns) > 0:
         assert len(self.table_columns) > 0, (self.in_table, text)
-        assert int(attrib["left"]) >= self.table_left, (self.in_table, text)
+        assert int(attrib["left"]) >= self.table_left, (self.in_table, text, self.page_number)
         if int(attrib["left"]) == self.table_left:
           warning("ignored h4 of {!r} in table {!r} since it's most likely a typo".format(text, self.in_table))
           attrib["meaning"] = "table-cell"
@@ -253,6 +255,8 @@ class State(object):
           print("{!r}, ".format(text))
       else:
         print("# ??? {} {!r}".format(text, attrib))
+    if attrib["meaning"] == "h4" and not self.in_table:
+      self.h4 = text
 
 def hashable_fontspec(d):
   result = tuple(sorted(d.items()))
