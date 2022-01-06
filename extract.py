@@ -76,13 +76,13 @@ class State(object):
       self.table_left = None
       self.table_column_lefts = []
       self.in_table_header = True
-      self.table_header_autobolder = self.h3 and self.h3.lower().endswith("register description")
+      self.table_header_autobolder = self.h3 and self.h3.lower().rstrip().endswith("register description")
   def finish_this_table(self):
     if self.in_table:
       assert not self.in_offset, self.in_table
-      if self.in_table_header:
-         import pdb
-         pdb.set_trace()
+      #if self.in_table_header:
+      #   import pdb
+      #   pdb.set_trace()
       assert not self.in_table_header, self.in_table
       print("]]")
       print()
@@ -90,7 +90,8 @@ class State(object):
   def process_text(self, text, attrib, xx):
     if self.in_register_name_multipart: # A64. It has "Register Name: <b>Foo</b>"
       assert (attrib["meaning"] == "h4" and xx == {"b"}) or attrib["meaning"] == "table-cell" or attrib["meaning"] == "h3", (self.page_number, attrib, xx)
-      if text.strip() and self.in_table_header:
+      if text.strip(): # and self.in_table_header:
+        self.in_register_name_multipart = False
         # Note: This has another copy!
         rname = text.strip()
         rname = rname.split("(n=")[0] # "NDFC_USER_DATAn(n=0~15)" in R40
@@ -105,14 +106,13 @@ class State(object):
           print("{!r},".format("Offset: " + self.offset))
           self.offset = None
         return
-      self.in_register_name_multipart = False
     text = text.replace("Offset :0x", "Offset: 0x")
     if attrib["meaning"] == "garbage":
       return
     if attrib["meaning"] == "garbage-if-empty" and text.strip() == "":
       return
     #print(">" + text + "<", attrib, xx, file=sys.stderr)
-    if self.h3 and self.h3.lower().endswith("register description") and attrib["meaning"] == "table-cell":
+    if self.h3 and self.h3.lower().rstrip().endswith("register description") and attrib["meaning"] == "table-cell":
       if self.in_table and self.in_table_header:
         if self.table_header_autobolder:
           # A64 does not bold most table headers, so we have to fake it here.
