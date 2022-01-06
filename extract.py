@@ -21,11 +21,12 @@ fontspec_to_meaning = [
   ({'color': '#000000', 'family': 'ABCDEE+Calibri', 'size': '13'}, "table-cell"), # used once
   ({'color': '#000000', 'family': 'Calibri', 'size': '120'}, "garbage"),
 
-  # R40
+  # R40, A64
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '15'}, "h4"),
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '90'}, "garbage"),
   ({'color': '#005ebd', 'family': 'ABCDEE+Calibri,Bold', 'size': '19'}, "h3"),
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '21'}, "h3"), # CPU Architecture
+  ({'color': '#0f0f00', 'family': 'ABCDEE+Calibri,Bold', 'size': '21'}, "h3"), # Register List in A64
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '23'}, "h2"),
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '18'}, "garbage-if-empty"), # Otherwise it throws off table header detection--and the text is empty anyway (TODO: check).
   ({'color': '#000000', 'family': 'Times New Roman,BoldItalic', 'size': 15}, "garbage-if-empty"),
@@ -62,6 +63,8 @@ class State(object):
     self.in_offset = False
     self.h3 = None
     self.page_number = None
+    self.in_register_name_multipart = False
+    self.table_header_autobolder = False
   def start_table(self, rname):
       self.finish_this_table()
       print()
@@ -72,20 +75,51 @@ class State(object):
       self.table_left = None
       self.table_column_lefts = []
       self.in_table_header = True
+      self.table_header_autobolder = self.h3 and self.h3.lower().endswith("register description")
   def finish_this_table(self):
     if self.in_table:
       assert not self.in_offset, self.in_table
+      if self.in_table_header:
+         import pdb
+         pdb.set_trace()
+      assert not self.in_table_header, self.in_table
       print("]]")
       print()
       self.in_table = False
   def process_text(self, text, attrib, xx):
+    if self.in_register_name_multipart: # A64. It has "Register Name: <b>Foo</b>"
+      assert (attrib["meaning"] == "h4" and xx == {"b"}) or attrib["meaning"] == "table-cell" or attrib["meaning"] == "h3", (self.page_number, attrib, xx)
+      if text.strip():
+        # Note: This has another copy!
+        rname = text.strip()
+        rname = rname.split("(n=")[0] # "NDFC_USER_DATAn(n=0~15)" in R40
+        if rname == "HcPeriodCurrentED(PCED)": # R40
+            rname = "HcPeriodCurrentED" # FIXME
+        rname = rname.replace("_C0~3", "") # in R40 # FIXME
+        if self.in_table != rname:
+          self.finish_this_table()
+          self.start_table(rname)
+          assert self.offset is not None, (rname, self.page_number)
+          print("{!r},".format("Offset: " + self.offset))
+          self.offset = None
+        return
+      self.in_register_name_multipart = False
     text = text.replace("Offset :0x", "Offset: 0x")
     if attrib["meaning"] == "garbage":
       return
     if attrib["meaning"] == "garbage-if-empty" and text.strip() == "":
       return
     #print(">" + text + "<")
-    # Fix typo
+    if self.h3 and self.h3.lower().endswith("register description") and attrib["meaning"] == "table-cell":
+      if self.in_table and self.in_table_header:
+        if self.table_header_autobolder:
+          # A64 does not bold most table headers, so we have to fake it here.
+          if text.strip():
+            xx.add("b")
+            attrib["meaning"] = "h4"
+        else:
+          self.in_table_header = False
+          print("], [[")
     if self.in_offset:
       if text.startswith("Register Name:"):
           self.in_offset = False
@@ -113,6 +147,11 @@ class State(object):
       self.offset = text.strip().replace("Offset:", "").strip() # FIXME: append
       # TODO: It could have parts between "Offset:" and "Register Name:"
       return
+    elif attrib["meaning"] == "table-cell" and text.strip().startswith("Offset:"): # A64
+      self.in_offset = True
+      self.offset = text.strip().replace("Offset:", "").strip() # FIXME: append
+      # TODO: It could have parts between "Offset:" and "Register Name:"
+      return
     elif attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Address:"): # R40
       self.in_offset = True
       self.offset = text.strip().replace("Address:", "").strip() # FIXME: append
@@ -120,7 +159,7 @@ class State(object):
       return
     elif attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Base Address:"):
       self.offset = text.strip().replace("Offset:", "").strip()
-    elif attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Module Name"): # module table
+    elif attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Module Name") and not self.in_table_header: # module table. Case when "Module Name" is a column twice in the same table is also handled.
       self.finish_this_table()
       rname = "Module List"
       if self.in_table != rname:
@@ -137,19 +176,23 @@ class State(object):
       self.finish_this_table()
     elif attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("0x"):
       self.finish_this_table()
-    elif attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Register Name: "):
-      rname = text.strip().replace("Register Name: ", "")
-      rname = rname.split("(n=")[0] # "NDFC_USER_DATAn(n=0~15)" in R40
-      if rname == "HcPeriodCurrentED(PCED)": # R40
-          rname = "HcPeriodCurrentED" # FIXME
-      rname = rname.replace("_C0~3", "") # in R40 # FIXME
-      if self.in_table != rname:
-        self.finish_this_table()
-        self.start_table(rname)
-        assert self.offset is not None, (rname, self.page_number)
-        print("{!r},".format("Offset: " + self.offset))
-        self.offset = None
-      return
+    elif text.strip().startswith("Register Name:"): # A64 does not match: attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Register Name:"):
+      rname = text.strip().replace("Register Name:", "").strip()
+      if rname.strip() == "":
+        self.in_register_name_multipart = True
+        return
+      else: # see copy of this in "if self.in_register_name_multipart"
+        rname = rname.split("(n=")[0] # "NDFC_USER_DATAn(n=0~15)" in R40
+        if rname == "HcPeriodCurrentED(PCED)": # R40
+            rname = "HcPeriodCurrentED" # FIXME
+        rname = rname.replace("_C0~3", "") # in R40 # FIXME
+        if self.in_table != rname:
+          self.finish_this_table()
+          self.start_table(rname)
+          assert self.offset is not None, (rname, self.page_number)
+          print("{!r},".format("Offset: " + self.offset))
+          self.offset = None
+        return
     elif attrib["meaning"] == "h4" and xx == {"b"} and self.in_table and not self.in_table_header and not self.in_offset: # sneakily start another table
       left = int(attrib["left"])
       if left == self.table_left:
@@ -160,7 +203,7 @@ class State(object):
               self.finish_this_table()
       #else:
       #    self.finish_this_table()
-    if self.in_table and self.in_table_header:
+    if self.in_table and self.in_table_header and text.strip() != "":
       if attrib["meaning"] == "h4" and len(self.table_columns) > 0:
         assert len(self.table_columns) > 0, (self.in_table, text)
         assert int(attrib["left"]) >= self.table_left, (self.in_table, text)
@@ -266,6 +309,8 @@ def traverse(state, root, indent = 0, fontspecs = []): # fontspecs: [(id, node w
         fontspec = resolve_fontspec(fontspecs, font_id)
         try:
           attrib["meaning"] = meaning_of_fontspec(fontspec, xx) or ""
+          #if not attrib["meaning"]:
+          #    print("^ Page {}: Text {!r}: Unknown font".format(state.page_number, text), file=sys.stderr)
         except KeyError as e:
           info("Text for failure below is: {}".format(text))
           raise e

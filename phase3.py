@@ -92,6 +92,7 @@ def unroll_instances(module):
   #print("BODY", body, file=sys.stderr)
   for Module_Name, Base_Address in body:
     Module_Name = Module_Name.strip()
+    Base_Address = Base_Address.replace("(for HDMI)", "").strip()
     Base_Address = eval(Base_Address.strip(), {})
     yield Module_Name, Base_Address
   #assert len(body) == 1, (header, body)
@@ -109,10 +110,12 @@ for n in dir(phase2_result):
   except TypeError:
     continue
   if module:
-    print("MOD", n, module, file=sys.stderr)
     module_module, module_header, module_body = module
     module_module = None # clean tree
     module = clean_table(module_module, module_header, module_body, n)
+    module_module, module_header, module_body = module
+    if module_header[1] != ["Module_Name", "Base_Address"]: # those are not supported
+      continue
     module = dict([(k, v) for k, v in unroll_instances(module)])
   value = clean_table(module, header, body, n)
   setattr(phase2_result, n, value)
@@ -546,6 +549,7 @@ def parse_Register(rspec, field_word_count = 1):
             except ValueError:
                 warning("{!r}: Invalid field {!r}: Bitrange error".format(register_name, register_field))
                 continue
+        default_part = default_part.strip().rstrip(".")
         if default_part.strip() in ["/", "None", "UDF", ""]:
             pass
         else:
