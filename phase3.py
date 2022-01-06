@@ -417,10 +417,16 @@ def create_register(table_definition, name, addressOffset, register_description=
                 else:
                   warning("Could not interpret enumeratedValue {!r}: {!r} in field {!r} in register {!r} (num_bits = {!r})".format(n, meaning, name, register_name, num_bits))
                   continue
-              else: # decimal
+              elif len([x for x in n if x not in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]]) == 0: # decimal
                  n = int(n)
-                 assert n >= 0 and n < 2**num_bits
-                 n = str(n)
+                 if n >= 0 and n < 2**num_bits:
+                    n = str(n)
+                 else:
+                    warning("Could not interpret enumeratedValue {!r}: {!r} in field {!r} in register {!r} (num_bits = {!r})".format(n, meaning, name, register_name, num_bits))
+                    continue
+              else:
+                 warning("Could not interpret enumeratedValue {!r}: {!r} in field {!r} in register {!r} (num_bits = {!r})".format(n, meaning, name, register_name, num_bits))
+                 continue
           enumeratedValue = create_enumeratedValue(variant_name, n, meaning or n)
           enumeratedValues.append(enumeratedValue)
         if len(enumeratedValues) > 0:
