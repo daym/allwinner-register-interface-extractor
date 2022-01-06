@@ -76,7 +76,7 @@ class State(object):
       self.table_left = None
       self.table_column_lefts = []
       self.in_table_header = True
-      self.table_header_autobolder = self.h3 and self.h3.lower().rstrip().endswith("register description")
+      self.table_header_autobolder = self.h3 and (self.h3.lower().rstrip().endswith("register description") or self.h3.lower().rstrip().endswith("register list"))
   def finish_this_table(self):
     if self.in_table:
       assert not self.in_offset, self.in_table
@@ -112,16 +112,9 @@ class State(object):
     if attrib["meaning"] == "garbage-if-empty" and text.strip() == "":
       return
     #print(">" + text + "<", attrib, xx, file=sys.stderr)
-    if self.h3 and self.h3.lower().rstrip().endswith("register description") and attrib["meaning"] == "table-cell":
-      if self.in_table and self.in_table_header:
-        if self.table_header_autobolder:
-          # A64 does not bold most table headers, so we have to fake it here.
-          if text.strip():
-            xx.add("b")
-            attrib["meaning"] = "h4"
-        else:
-          self.in_table_header = False
-          print("], [[")
+    #if text.strip() == "Module Name" and self.page_number == '81':
+    #  import pdb
+    #  pdb.set_trace()
     if self.in_offset:
       if text.startswith("Register Name:"):
           self.in_offset = False
@@ -161,7 +154,7 @@ class State(object):
       return
     elif attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Base Address:"):
       self.offset = text.strip().replace("Offset:", "").strip()
-    elif attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Module Name") and not self.in_table_header: # module table. Case when "Module Name" is a column twice in the same table is also handled.
+    elif attrib["meaning"] in ["h4", "table-cell"] and text.strip().startswith("Module Name") and not self.in_table_header: # module table. Case when "Module Name" is a column twice in the same table is also handled.  A64 sometimes doesn't have xx == {"b"}
       self.finish_this_table()
       rname = "Module List"
       if self.in_table != rname:
@@ -172,7 +165,7 @@ class State(object):
         #assert self.offset is not None, rname
         #print("Offset", self.offset)
         #self.offset = None
-    elif attrib["meaning"] == "h4" and xx == {"b"} and text.strip() == "Register Name": # summary; ignore
+    elif text.strip() == "Register Name": # attrib["meaning"] == "h4" and xx == {"b"} and text.strip() == "Register Name": # summary; ignore
       self.finish_this_table()
     elif attrib["meaning"] == "h4" and xx == {"b"} and text.strip() == "Symbol": # 3.12.5 Register List Symbol table; ignore
       self.finish_this_table()
@@ -206,6 +199,17 @@ class State(object):
       #else:
       #    self.finish_this_table()
     if self.in_table and self.in_table_header and text.strip() != "":
+      if self.h3 and (self.h3.lower().rstrip().endswith("register description") or self.h3.lower().rstrip().endswith("register list")) and attrib["meaning"] == "table-cell":
+         if self.in_table and self.in_table_header:
+           if self.table_header_autobolder:
+             # A64 does not bold most table headers, so we have to fake it here.
+             if text.strip():
+               xx.add("b")
+               attrib["meaning"] = "h4"
+           else:
+             self.in_table_header = False
+             print("], [[")
+
       if attrib["meaning"] == "h4" and len(self.table_columns) > 0:
         assert len(self.table_columns) > 0, (self.in_table, text)
         assert int(attrib["left"]) >= self.table_left, (self.in_table, text)
