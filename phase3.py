@@ -411,11 +411,16 @@ def create_register(table_definition, name, addressOffset, register_description=
                   warning("Could not interpret enumeratedValue {!r}: {!r} in field {!r} in register {!r}".format(n, meaning, name, register_name))
                   continue
           else: # binary
-              if len(n) == num_bits and len([x for x in n if x not in ["0", "1"]]) == 0:
+              if len([x for x in n if x not in ["0", "1"]]) == 0:
+                if len(n) == num_bits:
                   n = "0b{}".format(n)
-              else:
+                else:
                   warning("Could not interpret enumeratedValue {!r}: {!r} in field {!r} in register {!r} (num_bits = {!r})".format(n, meaning, name, register_name, num_bits))
                   continue
+              else: # decimal
+                 n = int(n)
+                 assert n >= 0 and n < 2**num_bits
+                 n = str(n)
           enumeratedValue = create_enumeratedValue(variant_name, n, meaning or n)
           enumeratedValues.append(enumeratedValue)
         if len(enumeratedValues) > 0:
