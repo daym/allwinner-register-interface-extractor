@@ -553,6 +553,11 @@ def parse_Register(rspec, field_word_count = 1):
             except ValueError:
                 warning("{!r}: Invalid field {!r}: Bitrange error".format(register_name, register_field))
                 continue
+            if max_bit < min_bit: # bug
+              if max_bit == 0 and min_bit > 10: # work around A64 bug
+                max_bit, min_bit = min_bit, max_bit
+              else:
+                error("{!r}: Invalid field {!r}: Bitrange error".format(register_name, register_field))
         elif len(parts) != 1:
             warning("Field could not be parsed as a bitrange: {!r}".format(parts))
             continue
