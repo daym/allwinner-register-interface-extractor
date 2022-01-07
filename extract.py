@@ -204,13 +204,16 @@ class State(object):
       #    self.finish_this_table()
     if self.in_table and self.in_table_header and text.strip() != "":
       if self.h3 and (self.h3.lower().rstrip().endswith("register description") or self.h3.lower().rstrip().endswith("register list")) and attrib["meaning"] == "table-cell":
+           if len(self.table_columns) > 0:
+             if self.table_left is not None and abs(self.table_left -  int(attrib["left"])) <= 1:
+               self.table_header_autobolder = False
            if self.table_header_autobolder:
              # A64 does not bold most table headers, so we have to fake it here.
              xx.add("b")
              attrib["meaning"] = "h4"
-           else:
-             self.in_table_header = False
-             print("], [[")
+           #else:
+           #  self.in_table_header = False
+           #  print("], [[")
 
       if attrib["meaning"] == "h4" and len(self.table_columns) > 0:
         assert len(self.table_columns) > 0, (self.in_table, text)
