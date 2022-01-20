@@ -526,8 +526,8 @@ re_name_write = re.compile(r"^[(]write[)]([0-9]*[A-Z_a-z]+|bist_en_a|vc_addr|vc_
 
 re_field_name_good = re.compile(r"^(([0-9]*[A-Z][A-Z0-9]*_[A-Z0-9./_-]+[a-zA-Z0-9./_-]*|[0-9]*[A-Z][A-Z0-9./_-]+)(\[[0-9]+(:[0-9]+)?\])?)\s")
 
-connectives = set(["a", "the", "has", "is", "are", "includes", "the", "to", "for", "largest", "between", "because", "how", "whether", "indicates", "specifies", "by", "when", "of", "contains", "initiate", "related", "if", "affected", "dedicated", "support"])
-nouns = set(["threshold", "peak", "coefficient", "rms", "receive", "transmit", "gain", "smooth", "filter", "signal", "average", "attack", "sustain", "decay", "hold", "release", "size", "count", "enable", "mode"])
+connectives = set(["a", "the", "has", "is", "are", "includes", "the", "to", "for", "largest", "between", "because", "how", "whether", "indicates", "specifies", "by", "when", "of", "contains", "initiate", "related", "if", "affected", "dedicated", "support", "and"])
+nouns = set(["threshold", "peak", "coefficient", "rms", "receive", "transmit", "gain", "smooth", "filter", "signal", "average", "attack", "sustain", "decay", "hold", "release", "size", "count", "enable", "mode", "time", "channel", "noise"])
 
 def parse_Register(rspec, field_word_count = 1):
     register_name, (register_meta, register_header), register_fields = rspec
@@ -602,11 +602,13 @@ def parse_Register(rspec, field_word_count = 1):
         #if register_name.strip().startswith("HcControlCurrentED"):
         #   import pdb
         #   pdb.set_trace()
+        matched_field_name_good = False
         if description:
            q = description.split(". ")[0]
            if field_word_count == 1:
                m = re_field_name_good.match("{} ".format(q))
                if m: # FOO_BAR
+                   matched_field_name_good = True
                    q = m.group(1)
                    #q = q.replace("[", "_").replace("]", "_").replace(":", "") # it's better if those pseudo fields don't come out.
            words = q.replace(" is set by hardware to ", " ").replace(" by HC to ", " to ").replace(" to point to ", " to ").replace(" to enable or disable ", " ").replace(" to enable/disable ", " ").replace(" by HCD ", " ").replace(" when HC ", " ").replace(" is set by an OS HCD ", " ").replace(" is set by HCD ", " ").replace(" is set by HC ", " ").replace(" content of ", " ").replace("hyscale en", "hyscale_en").split("\n", 1)[0].split()
@@ -627,7 +629,7 @@ def parse_Register(rspec, field_word_count = 1):
            q = words[0:field_word_count]
            r = words[field_word_count:]
            #connective_count = 0
-           if len(r) > 0 and (r[0] in connectives):
+           if len(r) > 0 and not matched_field_name_good and (r[0] in connectives or r[0].lower() in nouns):
                return parse_Register(rspec, field_word_count = field_word_count + 1)
            #    q.append(r[0])
            #    del r[0]
