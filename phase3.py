@@ -661,7 +661,7 @@ def parse_Register(rspec, field_word_count = 1):
             pass
         elif not name or name.strip() == "/" or re_definitely_not_name.match(name) or name.lower().strip() in ["one", "remote", "00b", "writes", "per-port", "power", "that", "end", "no", "causing", "is", "1:", "32k", "0x0", "0x1", "upsample", "en", "of", "at", "implemented"]:
             #warning("{!r}: Field name could not be determined: {!r} (tried: {!r}".format(register_name, register_field, name))
-            if field_word_count < 5:
+            if field_word_count < 6:
                 return parse_Register(rspec, field_word_count = field_word_count + 1)
             else:
                 warning("{!r}: Field name could not be determined: {!r} (tried: {!r}".format(register_name, register_field, name))
@@ -683,13 +683,13 @@ def parse_Register(rspec, field_word_count = 1):
                 #info("{!r}: Guessed field name {!r} from {!r}".format(register_name, name, description))
             bits.append(((max_bit, min_bit), name, description, access))
         else:
-            if field_word_count < 5:
+            if field_word_count < 6:
                 return parse_Register(rspec, field_word_count = field_word_count + 1)
             else:
                 warning("{!r}: Field names are not all known; for example the one described by: {!r}".format(register_name, description))
     field_names = [name for _, name, _, _ in bits]
     if len(set(field_names)) != len(field_names):
-        if field_word_count < 5:
+        if field_word_count < 6:
             return parse_Register(rspec, field_word_count = field_word_count + 1)
         else:
             warning("{!r}: Field names are not unique: {!r}".format(register_name, field_names))
