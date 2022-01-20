@@ -529,6 +529,68 @@ re_field_name_good = re.compile(r"^(([0-9]*[A-Z][A-Z0-9]*_[A-Z0-9./_-]+[a-zA-Z0-
 connectives = set(["a", "the", "has", "is", "are", "includes", "the", "to", "for", "largest", "between", "because", "how", "whether", "indicates", "specifies", "by", "when", "of", "contains", "initiate", "related", "if", "affected", "dedicated", "support", "and"])
 nouns = set(["threshold", "peak", "coefficient", "rms", "receive", "transmit", "gain", "smooth", "filter", "signal", "average", "attack", "sustain", "decay", "hold", "release", "size", "count", "enable", "mode", "time", "channel", "noise"])
 
+def field_name_from_description(description, field_word_count):
+        """ Returns the field name extracted from a description.  Returns the empty string if that cannot be done.
+            Also returns whether the match was very good, and whether the match was very bad. """
+        matched_field_name_good = False
+        guessed = False
+        if description:
+           q = description.split(". ")[0]
+           if field_word_count == 1:
+               m = re_field_name_good.match("{} ".format(q))
+               if m: # FOO_BAR
+                   matched_field_name_good = True
+                   q = m.group(1)
+                   #q = q.replace("[", "_").replace("]", "_").replace(":", "") # it's better if those pseudo fields don't come out.
+           words = q.replace(" is set by hardware to ", " ").replace(" by HC to ", " to ").replace(" to point to ", " to ").replace(" to enable or disable ", " ").replace(" to enable/disable ", " ").replace(" by HCD ", " ").replace(" when HC ", " ").replace(" is set by an OS HCD ", " ").replace(" is set by HCD ", " ").replace(" is set by HC ", " ").replace(" content of ", " ").replace("hyscale en", "hyscale_en").split("\n", 1)[0].split()
+           stripped = False
+           while len(words) > 0 and (words[0] in ["This", "field", "bit", "set", "indicate", "specify", "describes", "determines", "used", "there", "any", "the", "a", "an", "value", "which", "loaded", "into", "The", "the", "that", "byte", "implemented", "incremented", "immediately", "initiated", "Each"] or words[0] in connectives):
+              del words[0]
+              stripped = True
+           if words[0:2] == ["address", "of"]:
+              del words[0]
+              del words[0]
+           #elif words[0:3] == ["base", "address", "of"]:
+           #   del words[0]
+           #   del words[0]
+           elif words[0:4] == ["enable", "the", "processing", "of"]:
+              del words[0:4]
+           while len(words) > 0 and words[0] in ["the", "a", "implemented", "is"]:
+              del words[0]
+           q = words[0:field_word_count]
+           r = words[field_word_count:]
+           #connective_count = 0
+           if len(r) > 0 and not matched_field_name_good and (r[0] in connectives or r[0].lower() in nouns):
+               return "", False, False
+           #    q.append(r[0])
+           #    del r[0]
+           #    if r == []:
+           #        break
+           #    words = r
+           #    while len(words) > 0 and words[0] in ["the", "a", "an"]:
+           #        del words[0]
+           #    q.append(words[0])
+           #    del r[0]
+           name = "_".join(q) or ""
+           name = name.rstrip(".").rstrip(",").rstrip(":").rstrip()
+           name = name.replace("(Read)", "(read)")
+           m = re_name_read.match(name)
+           if m: # "(read)A" vs "(write)B"
+             name = "{}_R".format(m.group(1))
+           m = re_name_write.match(name)
+           if m: # "(read)A" vs "(write)B"
+             name = "{}_W".format(m.group(1))
+           name = name.upper()
+           #print("NAME", name, file=sys.stderr)
+           if not re_name.match(name):
+             name = ""
+           if stripped:
+              guessed = True
+              #info("{!r}: Guessed {!r} from {!r}".format(register_name, name, description))
+        else:
+            name = ""
+        return name, matched_field_name_good, guessed
+
 def parse_Register(rspec, field_word_count = 1):
     register_name, (register_meta, register_header), register_fields = rspec
     if register_header[0:1] != ['Bit'] or "Default/Hex" not in register_header:
@@ -599,65 +661,10 @@ def parse_Register(rspec, field_word_count = 1):
                 error("{!r}: Could not parse default value {!r}".format(register_name, default_part))
                 import traceback
         guessed = False
-        #if register_name.strip().startswith("HcControlCurrentED"):
+        #if register_name.strip().startswith("BUS_SOFT_RST_REG3"):
         #   import pdb
         #   pdb.set_trace()
-        matched_field_name_good = False
-        if description:
-           q = description.split(". ")[0]
-           if field_word_count == 1:
-               m = re_field_name_good.match("{} ".format(q))
-               if m: # FOO_BAR
-                   matched_field_name_good = True
-                   q = m.group(1)
-                   #q = q.replace("[", "_").replace("]", "_").replace(":", "") # it's better if those pseudo fields don't come out.
-           words = q.replace(" is set by hardware to ", " ").replace(" by HC to ", " to ").replace(" to point to ", " to ").replace(" to enable or disable ", " ").replace(" to enable/disable ", " ").replace(" by HCD ", " ").replace(" when HC ", " ").replace(" is set by an OS HCD ", " ").replace(" is set by HCD ", " ").replace(" is set by HC ", " ").replace(" content of ", " ").replace("hyscale en", "hyscale_en").split("\n", 1)[0].split()
-           stripped = False
-           while len(words) > 0 and (words[0] in ["This", "field", "bit", "set", "indicate", "specify", "describes", "determines", "used", "there", "any", "the", "a", "an", "value", "which", "loaded", "into", "The", "the", "that", "byte", "implemented", "incremented", "immediately", "initiated", "Each"] or words[0] in connectives):
-              del words[0]
-              stripped = True
-           if words[0:2] == ["address", "of"]:
-              del words[0]
-              del words[0]
-           #elif words[0:3] == ["base", "address", "of"]:
-           #   del words[0]
-           #   del words[0]
-           elif words[0:4] == ["enable", "the", "processing", "of"]:
-              del words[0:4]
-           while len(words) > 0 and words[0] in ["the", "a", "implemented", "is"]:
-              del words[0]
-           q = words[0:field_word_count]
-           r = words[field_word_count:]
-           #connective_count = 0
-           if len(r) > 0 and not matched_field_name_good and (r[0] in connectives or r[0].lower() in nouns):
-               return parse_Register(rspec, field_word_count = field_word_count + 1)
-           #    q.append(r[0])
-           #    del r[0]
-           #    if r == []:
-           #        break
-           #    words = r
-           #    while len(words) > 0 and words[0] in ["the", "a", "an"]:
-           #        del words[0]
-           #    q.append(words[0])
-           #    del r[0]
-           name = "_".join(q) or ""
-           name = name.rstrip(".").rstrip(",").rstrip(":").rstrip()
-           name = name.replace("(Read)", "(read)")
-           m = re_name_read.match(name)
-           if m: # "(read)A" vs "(write)B"
-             name = "{}_R".format(m.group(1))
-           m = re_name_write.match(name)
-           if m: # "(read)A" vs "(write)B"
-             name = "{}_W".format(m.group(1))
-           name = name.upper()
-           #print("NAME", name, file=sys.stderr)
-           if not re_name.match(name):
-             name = ""
-           if stripped:
-              guessed = True
-              #info("{!r}: Guessed {!r} from {!r}".format(register_name, name, description))
-        else:
-            name = ""
+        name, matched_field_name_good, guessed = field_name_from_description(description, field_word_count)
         if name.lower().strip() in ["reserved", "revered"] or name.lower().strip().startswith("reserved"): # sic
             continue
         elif re_name.match(name):
@@ -668,6 +675,9 @@ def parse_Register(rspec, field_word_count = 1):
                 return parse_Register(rspec, field_word_count = field_word_count + 1)
             else:
                 warning("{!r}: Field name could not be determined: {!r} (tried: {!r})".format(register_name, register_field, name))
+                #if register_name.strip().startswith("BUS_SOFT_RST_REG3"):
+                #  import pdb
+                #  pdb.set_trace()
                 continue
         else:
             name = "" # assert re_name.match(name), name
