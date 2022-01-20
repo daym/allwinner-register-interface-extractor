@@ -520,6 +520,9 @@ re_definitely_not_name = re.compile("^[0-9]*$")
 re_name = re.compile(r"^([0-9]*[A-Z_0-9]+[A-Z_0-9./-][A-Z_0-9]*|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en)$")
 re_name_read = re.compile(r"^[(]read[)]([0-9]*[A-Z_a-z]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en)$")
 re_name_write = re.compile(r"^[(]write[)]([0-9]*[A-Z_a-z]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en)$")
+
+re_field_name_good = re.compile(r"^([A-Z]+_[A-Z0-9./_-]+[a-zA-Z0-9]*)")
+
 def parse_Register(rspec, field_word_count = 1):
     register_name, (register_meta, register_header), register_fields = rspec
     if register_header[0:1] != ['Bit'] or "Default/Hex" not in register_header:
@@ -589,7 +592,11 @@ def parse_Register(rspec, field_word_count = 1):
                 import traceback
         guessed = False
         if description:
-           words = description.split(". ")[0].replace(" is set by hardware to ", " ").replace(" by HC to ", " to ").replace(" to point to ", " to ").replace(" to enable or disable ", " ").replace(" to enable/disable ", " ").replace(" by HCD ", " ").replace(" when HC ", " ").replace(" is set by an OS HCD ", " ").replace(" is set by HCD ", " ").replace(" is set by HC ", " ").replace(" content of ", " ").replace("hyscale en", "hyscale_en").split("\n", 1)[0].split()
+           q = description.split(". ")[0]
+           m = re_field_name_good.match(q)
+           if m: # FOO_BAR
+               q = m.group(1)
+           words = q.replace(" is set by hardware to ", " ").replace(" by HC to ", " to ").replace(" to point to ", " to ").replace(" to enable or disable ", " ").replace(" to enable/disable ", " ").replace(" by HCD ", " ").replace(" when HC ", " ").replace(" is set by an OS HCD ", " ").replace(" is set by HCD ", " ").replace(" is set by HC ", " ").replace(" content of ", " ").replace("hyscale en", "hyscale_en").split("\n", 1)[0].split()
            stripped = False
            while len(words) > 0 and words[0] in ["This", "field", "bit", "is", "are", "set", "to", "indicates", "indicate", "specifies", "specify", "how", "describes", "determines", "used", "whether", "there", "any", "the", "a", "an", "value", "which", "loaded", "into", "The", "the", "that", "specifies", "by", "when", "of", "contains", "byte", "implemented", "incremented", "immediately", "initiated", "initiate"]:
               del words[0]
@@ -636,7 +643,7 @@ def parse_Register(rspec, field_word_count = 1):
             name = "" # assert re_name.match(name), name
         name = name.replace(".", "_") # XXX shouldn't svd2rust do that?
         name = "_{}".format(name)
-        if name.endswith("_A") or name.endswith("_THE") or name.endswith("_HAS") or name.endswith("_ARE") or name.endswith("_INCLUDES") or name.endswith("_THE") or name.endswith("_TO") or name.endswith("_FOR") or name.endswith("_OF") or name.endswith("_NOT") or name.endswith("_THE") or name.endswith("_LARGEST") or name.endswith("_BETWEEN"):
+        if name.endswith("_A") or name.endswith("_THE") or name.endswith("_HAS") or name.endswith("_ARE") or name.endswith("_INCLUDES") or name.endswith("_THE") or name.endswith("_TO") or name.endswith("_FOR") or name.endswith("_OF") or name.endswith("_NOT") or name.endswith("_THE") or name.endswith("_LARGEST") or name.endswith("_BETWEEN") or name.endswith("_BECAUSE"):
           # we assume there will be more words following on the next call of parse_Register
           name = ""
         else:
