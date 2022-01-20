@@ -174,7 +174,7 @@ def create_addressBlock(offset, size, usage="registers"):
 re_digit = re.compile(r"^[0-9]")
 
 def generate_enumeratedValue_name(key, meaning, parts = 1):
-  q = meaning.split()
+  q = meaning.strip().split()
   while len(q) > 0 and q[0].lower() in ["using", "the"]:
      del q[0]
   if len(q) < parts:
@@ -323,7 +323,7 @@ def create_register(table_definition, name, addressOffset, register_description=
       #  print("QQ", lines, file=sys.stderr)
 
       # Check for columns like "0x00: foo    0x10: bar" and flatten those
-      if len([1 for n, meaning in lines if re_enum_column_2.match(meaning)]) > 0: 
+      if len([1 for n, meaning in lines if re_enum_column_2.match(meaning)]) > 0:
          nlines = []
          for n, meaning in lines:
             m = re_enum_column_2.search(meaning)
@@ -341,11 +341,11 @@ def create_register(table_definition, name, addressOffset, register_description=
       for n, meaning in lines:
             n = n.strip()
             meaning = meaning.strip()
-            if meaning.strip().lower() in ["reserved", "revered"]: # sic
+            if meaning.strip().lower() in ["reserved", "revered", "/"]: # sic
               continue
             variant_name = generate_enumeratedValue_name(n, meaning or n, parts = counter)
             if variant_name is None:
-              warning("register {!r} field {!r} enum variants are not unique. Giving up.".format(register_name, name))
+              warning("register {!r} field {!r} enum variants are not unique ({!r}, counter = {!r}). Giving up.".format(register_name, name, lines, counter))
               enums = []
               break
             if variant_name.lower().startswith(name.lower() + "_") and len(variant_name.lower()) > len(name.lower() + "_"):
@@ -652,7 +652,7 @@ def parse_Register(rspec, field_word_count = 1):
              name = ""
            if stripped:
               guessed = True
-              info("{!r}: Guessed {!r} from {!r}".format(register_name, name, description))
+              #info("{!r}: Guessed {!r} from {!r}".format(register_name, name, description))
         else:
             name = ""
         if name.lower().strip() in ["reserved", "revered"] or name.lower().strip().startswith("reserved"): # sic
