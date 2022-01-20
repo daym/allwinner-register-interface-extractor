@@ -589,7 +589,7 @@ def parse_Register(rspec, field_word_count = 1):
                 import traceback
         guessed = False
         if description:
-           words = description.replace(" is set by hardware to ", " ").replace(" by HC to ", " to ").replace(" to enable or disable ", " ").replace(" to enable/disable ", " ").replace(" by HCD ", " ").replace(" when HC ", " ").replace(" is set by an OS HCD ", " ").replace(" is set by HCD ", " ").replace(" is set by HC ", " ").replace(" content of ", " ").replace("hyscale en", "hyscale_en").split("\n", 1)[0].split()
+           words = description.split(". ")[0].replace(" is set by hardware to ", " ").replace(" by HC to ", " to ").replace(" to point to ", " to ").replace(" to enable or disable ", " ").replace(" to enable/disable ", " ").replace(" by HCD ", " ").replace(" when HC ", " ").replace(" is set by an OS HCD ", " ").replace(" is set by HCD ", " ").replace(" is set by HC ", " ").replace(" content of ", " ").replace("hyscale en", "hyscale_en").split("\n", 1)[0].split()
            stripped = False
            while len(words) > 0 and words[0] in ["This", "field", "bit", "is", "are", "set", "to", "indicates", "indicate", "specifies", "specify", "how", "describes", "determines", "used", "whether", "there", "any", "the", "a", "an", "value", "which", "loaded", "into", "The", "the", "that", "specifies", "by", "when", "of", "contains", "byte", "implemented", "incremented", "immediately", "initiated", "initiate"]:
               del words[0]
@@ -643,7 +643,8 @@ def parse_Register(rspec, field_word_count = 1):
           name = name[1:]
         if name:
             if guessed:
-                info("{!r}: Guessed field name {!r} from {!r}".format(register_name, name, description))
+                name = "*{}".format(name)
+                #info("{!r}: Guessed field name {!r} from {!r}".format(register_name, name, description))
             bits.append(((max_bit, min_bit), name, description, access))
         else:
             if field_word_count < 5:
@@ -656,6 +657,12 @@ def parse_Register(rspec, field_word_count = 1):
             return parse_Register(rspec, field_word_count = field_word_count + 1)
         else:
             warning("{!r}: Field names are not unique: {!r}".format(register_name, field_names))
+
+    for ((max_bit, min_bit), name, description, access) in bits:
+        if name.startswith("*"):
+          info("{!r}: Guessed field name {!r}".format(register_name, name.lstrip("*")))
+    bits = [((max_bit, min_bit), name.lstrip("*"), description, access) for ((max_bit, min_bit), name, description, access) in bits]
+
     return Register(name = register_name, meta = register_meta, header = register_header, bits = bits, reset_value = default_value, reset_mask = default_mask)
 
 re_N_unicode_range = re.compile(r"N\s*=\s*([0-9])+–([0-9]+)")
