@@ -524,10 +524,10 @@ re_name = re.compile(r"^([0-9]*[A-Z_0-9]+[A-Z_0-9./-][A-Z_0-9]*|bist_en_a|vc_add
 re_name_read = re.compile(r"^[(]read[)]([0-9]*[A-Z_a-z]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en)$")
 re_name_write = re.compile(r"^[(]write[)]([0-9]*[A-Z_a-z]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en)$")
 
-re_field_name_good = re.compile(r"^([0-9]*[A-Z]+_[A-Z0-9./_-]+[a-zA-Z0-9./_-]*|[0-9]*[A-Z][A-Z0-9./_-]+)\s")
+re_field_name_good = re.compile(r"^([0-9]*[A-Z][A-Z0-9]*_[A-Z0-9./_-]+[a-zA-Z0-9./_-]*|[0-9]*[A-Z][A-Z0-9./_-]+)\s")
 
 connectives = set(["a", "the", "has", "is", "are", "includes", "the", "to", "for", "largest", "between", "because", "how", "whether", "indicates", "specifies", "by", "when", "of", "contains", "initiate"])
-nouns = set(["threshold", "peak", "coefficient", "rms", "receive", "transmit", "gain", "smooth", "filter", "signal", "average", "attack", "sustain", "decay", "hold", "release"])
+nouns = set(["threshold", "peak", "coefficient", "rms", "receive", "transmit", "gain", "smooth", "filter", "signal", "average", "attack", "sustain", "decay", "hold", "release", "size", "count"])
 
 def parse_Register(rspec, field_word_count = 1):
     register_name, (register_meta, register_header), register_fields = rspec
@@ -599,9 +599,10 @@ def parse_Register(rspec, field_word_count = 1):
         guessed = False
         if description:
            q = description.split(". ")[0]
-           m = re_field_name_good.match("{} ".format(q))
-           if m: # FOO_BAR
-               q = m.group(1)
+           if field_word_count == 1:
+               m = re_field_name_good.match("{} ".format(q))
+               if m: # FOO_BAR
+                   q = m.group(1)
            words = q.replace(" is set by hardware to ", " ").replace(" by HC to ", " to ").replace(" to point to ", " to ").replace(" to enable or disable ", " ").replace(" to enable/disable ", " ").replace(" by HCD ", " ").replace(" when HC ", " ").replace(" is set by an OS HCD ", " ").replace(" is set by HCD ", " ").replace(" is set by HC ", " ").replace(" content of ", " ").replace("hyscale en", "hyscale_en").split("\n", 1)[0].split()
            stripped = False
            while len(words) > 0 and (words[0] in ["This", "field", "bit", "set", "indicate", "specify", "describes", "determines", "used", "there", "any", "the", "a", "an", "value", "which", "loaded", "into", "The", "the", "that", "byte", "implemented", "incremented", "immediately", "initiated"] or words[0] in connectives):
@@ -619,7 +620,7 @@ def parse_Register(rspec, field_word_count = 1):
               del words[0]
            q = words[0:field_word_count]
            r = words[field_word_count:]
-           while len(r) > 0 and (r[0].lower() in connectives or r[0].lower() in nouns):
+           while len(r) > 0 and (r[0] in connectives or r[0].lower() in nouns): # connectives which start with an uppercase letter are probably a case of a missing period before it.
                q.append(r[0])
                del r[0]
                assert len(r) > 0
