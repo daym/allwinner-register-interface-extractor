@@ -535,8 +535,8 @@ def field_name_from_description(description, field_word_count):
         matched_field_name_good = False
         guessed = False
         if description:
-           q = description.split(". ")[0]
-           if field_word_count == 1:
+           q = description.split(". ")[0].split(":")[0].split(",")[0]
+           if field_word_count == 1 or field_word_count == 6:
                m = re_field_name_good.match("{} ".format(q))
                if m: # FOO_BAR
                    matched_field_name_good = True
