@@ -412,7 +412,10 @@ def create_register(table_definition, name, addressOffset, register_description=
               if len(n) > len("0x"): # ok
                   pass
               else:
-                  warning("Could not interpret enumeratedValue {!r}: {!r} in field {!r} in register {!r}".format(n, meaning, name, register_name))
+                  if n in ["Other", "Others"] and meaning.strip() == "/":
+                      pass
+                  else:
+                      warning("Could not interpret enumeratedValue {!r}: {!r} in field {!r} in register {!r}".format(n, meaning, name, register_name))
                   continue
           else: # binary
               if len([x for x in n if x not in ["0", "1"]]) == 0:
