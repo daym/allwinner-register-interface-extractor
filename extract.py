@@ -78,6 +78,10 @@ class State(object):
       self.table_column_lefts = []
       self.in_table_header = True
       self.table_header_autobolder = self.h3 and (self.h3.lower().rstrip().endswith("register description") or self.h3.lower().rstrip().endswith("register list"))
+  def in_column_P(self, left, column_index):
+      x_left = self.table_column_lefts[column_index]
+      x_next_left = self.table_column_lefts[column_index + 1] if column_index + 1 < len(self.table_column_lefts) else 9999999
+      return x_left <= left < x_next_left
   def finish_this_table(self):
     if self.in_table:
       assert not self.in_offset, self.in_table
@@ -256,6 +260,16 @@ class State(object):
           pass
         else:
           print("{!r}, ".format(text))
+      elif attrib["meaning"] == "h4" and self.in_table and not self.in_table_header and len(self.table_columns) > 3 and self.in_column_P(int(attrib['left']), len(self.table_columns) - 1):
+        # This can be a repeated table column header--in which case we don't care--or a bolded field name--which we very much want. Distinguish those.
+        words = text.split()
+        columns = []
+        for w in self.table_columns:
+            columns.extend(w.split())
+        if any(word not in columns for word in words if word):
+            print("{!r}, ".format(text))
+        else:
+            print("# repeated table header {} {!r}".format(text, attrib))
       else:
         print("# ??? {} {!r}".format(text, attrib))
     if attrib["meaning"] == "h4" and not self.in_table:
