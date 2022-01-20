@@ -535,13 +535,15 @@ def field_name_from_description(description, field_word_count):
         matched_field_name_good = False
         guessed = False
         if description:
-           q = description.split(". ")[0].split(":")[0].split(",")[0]
+           q = description.split(". ")[0].split(",")[0]
            if field_word_count == 1 or field_word_count == 6:
                m = re_field_name_good.match("{} ".format(q))
                if m: # FOO_BAR
                    matched_field_name_good = True
                    q = m.group(1)
-                   #q = q.replace("[", "_").replace("]", "_").replace(":", "") # it's better if those pseudo fields don't come out.
+                   #q = q.replace("[", "_").replace("]", "_").replace(":", "") # it's better if those pseudo fields don't come out--but maybe we want the extra info.
+           if not matched_field_name_good:
+               q = q.split(":")[0]
            words = q.replace(" is set by hardware to ", " ").replace(" by HC to ", " to ").replace(" to point to ", " to ").replace(" to enable or disable ", " ").replace(" to enable/disable ", " ").replace(" by HCD ", " ").replace(" when HC ", " ").replace(" is set by an OS HCD ", " ").replace(" is set by HCD ", " ").replace(" is set by HC ", " ").replace(" content of ", " ").replace("hyscale en", "hyscale_en").split("\n", 1)[0].split()
            stripped = False
            while len(words) > 0 and (words[0] in ["This", "field", "bit", "set", "indicate", "specify", "describes", "determines", "used", "there", "any", "the", "a", "an", "value", "which", "loaded", "into", "The", "the", "that", "byte", "implemented", "incremented", "immediately", "initiated", "Each"] or words[0] in connectives):
@@ -661,7 +663,7 @@ def parse_Register(rspec, field_word_count = 1):
                 error("{!r}: Could not parse default value {!r}".format(register_name, default_part))
                 import traceback
         guessed = False
-        #if register_name.strip().startswith("BUS_SOFT_RST_REG3"):
+        #if register_name.strip().startswith("HcHCCA"):
         #   import pdb
         #   pdb.set_trace()
         name, matched_field_name_good, guessed = field_name_from_description(description, field_word_count)
