@@ -587,19 +587,22 @@ def parse_Register(rspec, field_word_count = 1):
             except (NameError, SyntaxError):
                 error("{!r}: Could not parse default value {!r}".format(register_name, default_part))
                 import traceback
+        guessed = False
         if description:
-           words = description.replace("hyscale en", "hyscale_en").split("\n", 1)[0].split()
+           words = description.replace(" is set by hardware to ", " ").replace(" by HC to ", " to ").replace(" to enable or disable ", " ").replace(" to enable/disable ", " ").replace(" by HCD ", " ").replace(" when HC ", " ").replace(" is set by an OS HCD ", " ").replace(" is set by HCD ", " ").replace(" is set by HC ", " ").replace(" content of ", " ").replace("hyscale en", "hyscale_en").split("\n", 1)[0].split()
            stripped = False
-           while len(words) > 0 and words[0] in ["This", "field", "bit", "is", "are", "set", "to", "indicates", "indicate", "specifies", "used", "whether", "there", "any", "the", "a", "value", "which", "loaded", "into", "The", "the"]:
+           while len(words) > 0 and words[0] in ["This", "field", "bit", "is", "are", "set", "to", "indicates", "indicate", "specifies", "specify", "how", "describes", "determines", "used", "whether", "there", "any", "the", "a", "an", "value", "which", "loaded", "into", "The", "the", "that", "specifies", "by", "when", "of", "contains", "byte", "implemented", "incremented", "immediately", "initiated", "initiate"]:
               del words[0]
               stripped = True
            if words[0:2] == ["address", "of"]:
               del words[0]
               del words[0]
-           elif words[0:3] == ["base", "address", "of"]:
-              del words[0]
-              del words[0]
-           while len(words) > 0 and words[0] in ["the", "a"]:
+           #elif words[0:3] == ["base", "address", "of"]:
+           #   del words[0]
+           #   del words[0]
+           elif words[0:4] == ["enable", "the", "processing", "of"]:
+              del words[0:4]
+           while len(words) > 0 and words[0] in ["the", "a", "implemented", "is"]:
               del words[0]
            name = "_".join(words[0:field_word_count]) or ""
            name = name.rstrip(".").rstrip(",").rstrip(":").rstrip()
@@ -615,20 +618,38 @@ def parse_Register(rspec, field_word_count = 1):
            if not re_name.match(name):
              name = ""
            if stripped:
-              info("{!r}: Guessed field name {!r}".format(register_name, name))
+              guessed = True
         else:
             name = ""
         if name.lower().strip() in ["reserved", "revered"]: # sic
             continue
         elif re_name.match(name):
             pass
-        elif not name or name.strip() == "/" or re_definitely_not_name.match(name) or name.lower().strip() in ["one", "remote", "00b", "writes", "per-port", "power", "that", "end", "no", "causing", "is", "1:", "32k", "0x0", "0x1", "upsample", "en"]:
-            warning("{!r}: Field name could not be determined: {!r} (tried: {!r}".format(register_name, register_field, name))
-            continue
+        elif not name or name.strip() == "/" or re_definitely_not_name.match(name) or name.lower().strip() in ["one", "remote", "00b", "writes", "per-port", "power", "that", "end", "no", "causing", "is", "1:", "32k", "0x0", "0x1", "upsample", "en", "of", "at", "implemented"]:
+            #warning("{!r}: Field name could not be determined: {!r} (tried: {!r}".format(register_name, register_field, name))
+            if field_word_count < 5:
+                return parse_Register(rspec, field_word_count = field_word_count + 1)
+            else:
+                warning("{!r}: Field name could not be determined: {!r} (tried: {!r}".format(register_name, register_field, name))
+                continue
         else:
             name = "" # assert re_name.match(name), name
         name = name.replace(".", "_") # XXX shouldn't svd2rust do that?
-        bits.append(((max_bit, min_bit), name, description, access))
+        name = "_{}".format(name)
+        if name.endswith("_A") or name.endswith("_THE") or name.endswith("_HAS") or name.endswith("_ARE") or name.endswith("_INCLUDES") or name.endswith("_THE") or name.endswith("_TO") or name.endswith("_FOR") or name.endswith("_OF") or name.endswith("_NOT") or name.endswith("_THE") or name.endswith("_LARGEST") or name.endswith("_BETWEEN"):
+          # we assume there will be more words following on the next call of parse_Register
+          name = ""
+        else:
+          name = name[1:]
+        if name:
+            if guessed:
+                info("{!r}: Guessed field name {!r} from {!r}".format(register_name, name, description))
+            bits.append(((max_bit, min_bit), name, description, access))
+        else:
+            if field_word_count < 5:
+                return parse_Register(rspec, field_word_count = field_word_count + 1)
+            else:
+                warning("{!r}: Field names are not all known; for example the one described by: {!r}".format(register_name, description))
     field_names = [name for _, name, _, _ in bits]
     if len(set(field_names)) != len(field_names):
         if field_word_count < 5:
