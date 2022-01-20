@@ -594,7 +594,7 @@ def parse_Register(rspec, field_word_count = 1):
                   else:
                       warning("{!r}: Default {} for field {!r} does not fit into slot with bitrange {}:{}".format(register_name, default_part, register_field, max_bit, min_bit))
                 except ValueError:
-                  warning("{!r}: Default {} for field {!r} was not understood".format(register_name, default_part, register_field))
+                  warning("{!r}: Default {!r} for field {!r} was not understood".format(register_name, default_part, register_field))
             except (NameError, SyntaxError):
                 error("{!r}: Could not parse default value {!r}".format(register_name, default_part))
                 import traceback
