@@ -521,7 +521,10 @@ re_name = re.compile(r"^([0-9]*[A-Z_0-9]+[A-Z_0-9./-][A-Z_0-9]*|bist_en_a|vc_add
 re_name_read = re.compile(r"^[(]read[)]([0-9]*[A-Z_a-z]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en)$")
 re_name_write = re.compile(r"^[(]write[)]([0-9]*[A-Z_a-z]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en)$")
 
-re_field_name_good = re.compile(r"^([A-Z]+_[A-Z0-9./_-]+[a-zA-Z0-9]*)")
+re_field_name_good = re.compile(r"^([A-Z]+_[A-Z0-9./_-]+[a-zA-Z0-9]*|[A-Z][A-Z0-9./_-]+)")
+
+connectives = set(["a", "the", "has", "is", "are", "includes", "the", "to", "for", "largest", "between", "because", "how", "whether", "indicates", "specifies", "by", "when", "of", "contains", "initiate"])
+nouns = set(["threshold", "peak", "coefficient", "rms", "receive", "transmit", "gain", "smooth", "filter", "signal", "average"])
 
 def parse_Register(rspec, field_word_count = 1):
     register_name, (register_meta, register_header), register_fields = rspec
@@ -598,7 +601,7 @@ def parse_Register(rspec, field_word_count = 1):
                q = m.group(1)
            words = q.replace(" is set by hardware to ", " ").replace(" by HC to ", " to ").replace(" to point to ", " to ").replace(" to enable or disable ", " ").replace(" to enable/disable ", " ").replace(" by HCD ", " ").replace(" when HC ", " ").replace(" is set by an OS HCD ", " ").replace(" is set by HCD ", " ").replace(" is set by HC ", " ").replace(" content of ", " ").replace("hyscale en", "hyscale_en").split("\n", 1)[0].split()
            stripped = False
-           while len(words) > 0 and words[0] in ["This", "field", "bit", "is", "are", "set", "to", "indicates", "indicate", "specifies", "specify", "how", "describes", "determines", "used", "whether", "there", "any", "the", "a", "an", "value", "which", "loaded", "into", "The", "the", "that", "specifies", "by", "when", "of", "contains", "byte", "implemented", "incremented", "immediately", "initiated", "initiate"]:
+           while len(words) > 0 and (words[0] in ["This", "field", "bit", "set", "indicate", "specify", "describes", "determines", "used", "there", "any", "the", "a", "an", "value", "which", "loaded", "into", "The", "the", "that", "byte", "implemented", "incremented", "immediately", "initiated"] or words[0] in connectives):
               del words[0]
               stripped = True
            if words[0:2] == ["address", "of"]:
@@ -611,7 +614,18 @@ def parse_Register(rspec, field_word_count = 1):
               del words[0:4]
            while len(words) > 0 and words[0] in ["the", "a", "implemented", "is"]:
               del words[0]
-           name = "_".join(words[0:field_word_count]) or ""
+           q = words[0:field_word_count]
+           r = words[field_word_count:]
+           while len(r) > 0 and (r[0].lower() in connectives or r[0].lower() in nouns):
+               q.append(r[0])
+               del r[0]
+               assert len(r) > 0
+               words = r
+               while len(words) > 0 and words[0] in ["the", "a", "an"]:
+                   del words[0]
+               q.append(words[0])
+               del r[0]
+           name = "_".join(q) or ""
            name = name.rstrip(".").rstrip(",").rstrip(":").rstrip()
            name = name.replace("(Read)", "(read)")
            m = re_name_read.match(name)
@@ -626,9 +640,10 @@ def parse_Register(rspec, field_word_count = 1):
              name = ""
            if stripped:
               guessed = True
+              info("{!r}: Guessed {!r} from {!r}".format(register_name, name, description))
         else:
             name = ""
-        if name.lower().strip() in ["reserved", "revered"]: # sic
+        if name.lower().strip() in ["reserved", "revered"] or name.lower().strip().startswith("reserved"): # sic
             continue
         elif re_name.match(name):
             pass
@@ -643,12 +658,14 @@ def parse_Register(rspec, field_word_count = 1):
             name = "" # assert re_name.match(name), name
         name = name.replace(".", "_") # XXX shouldn't svd2rust do that?
         name = "_{}".format(name)
-        if name.endswith("_A") or name.endswith("_THE") or name.endswith("_HAS") or name.endswith("_ARE") or name.endswith("_INCLUDES") or name.endswith("_THE") or name.endswith("_TO") or name.endswith("_FOR") or name.endswith("_OF") or name.endswith("_NOT") or name.endswith("_THE") or name.endswith("_LARGEST") or name.endswith("_BETWEEN") or name.endswith("_BECAUSE"):
+        if any(name.endswith("_{}".format(x.upper())) for x in connectives):
           # we assume there will be more words following on the next call of parse_Register
           name = ""
         else:
           name = name[1:]
         if name:
+            if name.endswith("_SETTING"): # what else would it be?
+                name = name[:-len("_SETTING")]
             if guessed:
                 name = "*{}".format(name)
                 #info("{!r}: Guessed field name {!r} from {!r}".format(register_name, name, description))
