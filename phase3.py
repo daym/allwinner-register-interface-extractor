@@ -15,6 +15,7 @@ from pprint import pprint
 del phase2_result.Module_List
 
 re_enum = re.compile(r"^[0-9xA-F]+: ")
+re_num_al_name = re.compile("^[0-9]*[A-Z]+$")
 
 #phase2_result__names
 
@@ -562,7 +563,7 @@ def field_name_from_description(description, field_word_count):
            q = words[0:field_word_count]
            r = words[field_word_count:]
            #connective_count = 0
-           if len(r) > 0 and not matched_field_name_good and (r[0] in connectives or r[0].lower() in nouns):
+           if len(r) > 0 and not matched_field_name_good and (r[0] in connectives or r[0].lower() in nouns) and field_word_count < 6:
                return "", False, False
            #    q.append(r[0])
            #    del r[0]
@@ -573,7 +574,7 @@ def field_name_from_description(description, field_word_count):
            #        del words[0]
            #    q.append(words[0])
            #    del r[0]
-           name = "_".join(q) or ""
+           name = "_".join([w for w in q if w[0].upper() in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" or re_num_al_name.match(w)]) or ""
            name = name.rstrip(".").rstrip(",").rstrip(":").rstrip()
            name = name.replace("(Read)", "(read)")
            name = name.replace("[POTPGT]", "") # redundant, and would cause it to fail.
@@ -664,11 +665,8 @@ def parse_Register(rspec, field_word_count = 1):
                 error("{!r}: Could not parse default value {!r}".format(register_name, default_part))
                 import traceback
         guessed = False
-        #if register_name.strip().startswith("HcRhDescriptorA"):
-        #   import pdb
-        #   pdb.set_trace()
         name, matched_field_name_good, guessed = field_name_from_description(description, field_word_count)
-        if name.lower().strip() in ["reserved", "revered"] or name.lower().strip().startswith("reserved"): # sic
+        if name.lower().strip() in ["reserved", "revered"] or name.lower().strip().startswith("reserved") or name.strip() == "/": # sic
             continue
         elif re_name.match(name):
             pass
