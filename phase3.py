@@ -541,7 +541,7 @@ def field_name_from_description(description, field_word_count):
                if m: # FOO_BAR
                    matched_field_name_good = True
                    q = m.group(1)
-                   #q = q.replace("[", "_").replace("]", "_").replace(":", "") # it's better if those pseudo fields don't come out--but maybe we want the extra info.
+                   #q = q.replace("[", "_").replace("]", "_").replace(":", "_") # it's better if those pseudo fields don't come out--but maybe we want the extra info.
            if not matched_field_name_good:
                q = q.split(":")[0]
            words = q.replace(" is set by hardware to ", " ").replace(" by HC to ", " to ").replace(" to point to ", " to ").replace(" to enable or disable ", " ").replace(" to enable/disable ", " ").replace(" by HCD ", " ").replace(" when HC ", " ").replace(" is set by an OS HCD ", " ").replace(" is set by HCD ", " ").replace(" is set by HC ", " ").replace(" content of ", " ").replace("hyscale en", "hyscale_en").split("\n", 1)[0].split()
@@ -576,6 +576,7 @@ def field_name_from_description(description, field_word_count):
            name = "_".join(q) or ""
            name = name.rstrip(".").rstrip(",").rstrip(":").rstrip()
            name = name.replace("(Read)", "(read)")
+           name = name.replace("[POTPGT]", "") # redundant, and would cause it to fail.
            m = re_name_read.match(name)
            if m: # "(read)A" vs "(write)B"
              name = "{}_R".format(m.group(1))
@@ -663,7 +664,7 @@ def parse_Register(rspec, field_word_count = 1):
                 error("{!r}: Could not parse default value {!r}".format(register_name, default_part))
                 import traceback
         guessed = False
-        #if register_name.strip().startswith("HcHCCA"):
+        #if register_name.strip().startswith("HcRhDescriptorA"):
         #   import pdb
         #   pdb.set_trace()
         name, matched_field_name_good, guessed = field_name_from_description(description, field_word_count)
