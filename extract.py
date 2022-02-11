@@ -67,12 +67,17 @@ class State(object):
     self.page_number = None
     self.in_register_name_multipart = False
     self.table_header_autobolder = False
+    self.prev_table_name = None
   def start_table(self, rname):
+      if self.prev_table_name == rname and rname != "Module List": # same-named things? Probably a mistake in the original PDF. Make sure we have both.
+        warning("Table {!r} is started again, even though we already saw the contents entirely.".format(rname))
+        rname = rname + "Q"
       self.finish_this_table()
       print()
       print("# START TABLE", rname)
       print("{} = Module_List, [".format(quote(rname)))
       self.in_table = rname
+      self.prev_table_name = rname
       self.table_columns = []
       self.table_left = None
       self.table_column_lefts = []
