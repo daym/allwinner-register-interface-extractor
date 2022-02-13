@@ -140,7 +140,7 @@ def clean_up_input():
 
     # Loop over all visible bindings in phase2_result
     for n in dir(phase2_result):
-        if n.startswith("__") or n == "Module_List":
+        if n.startswith("__") or n == "Module_List" or n == "Register List":
             pass
         else:
             x_module = getattr(phase2_result, n)
@@ -794,9 +794,11 @@ for module in root_dnode.children:
   module_baseAddress = eval(module_baseAddress, {})
 
   container = module
-  # FIXME: Handle children instead
-  if len(container.children) == 1 and container.children[0].header[1] == ['Register_Name', 'Offset', 'Description']:  # That's a summary. Skip it for now. FIXME: Handle it.
+  while len(container.children) == 1 and container.children[0].header[1] == ['Register_Name', 'Offset', 'Description']:  # That's a summary.
     container = container.children[0]
+    # Skip it for now. FIXME: Handle it.
+    summary = container
+    #summary: name=None, header=([], ['Register_Name', 'Offset', 'Description']), rows=[['PLL_CPUX_CTRL_REG ', '0x0000
 
   assert suffix == ["Module_Name", "Base_Address"], module.header
  #for module_row in module.rows:
