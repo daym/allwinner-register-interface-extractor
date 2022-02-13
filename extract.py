@@ -271,7 +271,7 @@ class State(object):
           i = self.table_column_lefts.index(left)
           xcolumn = self.table_columns[i]
           if text != xcolumn:
-              if (text.find("_") != -1 and len([c for c in text if c in "abcdefghijklmnopqrstuvwxyz"]) == 0) or text.strip() == "TVE": # that's a R40 subheader--for example in "7.2.4. Register List".
+              if len([c for c in text if c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"]) >= 3 and len([c for c in text if c in "abcdefghijklmnopqrstuvwxyz"]) == 0 and len(text.strip()) >= 3: # that's a R40 subheader--for example in "7.2.4. Register List".
                   print("], ['#', {!r}], [".format(text))
                   self.h4 = text # TODO: print it somehow
               elif text.strip().endswith(" Register") and [x.strip() for x in self.table_columns] == ['Register Name', 'Offset', 'Description']: # D1
