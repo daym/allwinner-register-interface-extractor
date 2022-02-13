@@ -794,12 +794,12 @@ for module in root_dnode.children:
   module_baseAddress = eval(module_baseAddress, {})
 
   container = module
-  while len(container.children) == 1 and container.children[0].header[1] == ['Register_Name', 'Offset', 'Description']:  # That's a summary.
+  if len(container.children) == 1 and container.children[0].header[1] == ['Register_Name', 'Offset', 'Description']:  # That's a summary.
     container = container.children[0]
     # Skip it for now. FIXME: Handle it.
     summary = container
     #summary: name=None, header=([], ['Register_Name', 'Offset', 'Description']), rows=[['PLL_CPUX_CTRL_REG ', '0x0000
-
+  assert not (len(container.children) == 1 and container.children[0].header[1] == ['Register_Name', 'Offset', 'Description']), module.rows
   assert suffix == ["Module_Name", "Base_Address"], module.header
  #for module_row in module.rows:
  #  print("MODULE ROW", module_row)
