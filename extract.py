@@ -79,21 +79,21 @@ class State(object):
         rname = "ROMIXSC"
     #elif rname == "DMA_IRQ_PEND_REG0" and self.offset == "0x0010": # Bug in R40: Actually, Offset 0x0010 is REG1 and not REG0 again.
     #  rname = "DMA_IRQ_PEND_REG0"
-    elif rname == "DMA_IRQ_PEND_REG0" and self.offset == "0x0014": # Bug in R40: Actually, Offset 0x0014 is REG1 and not REG0 again.
+    elif h4 == "DMA IRQ Pending Status Register 1" and rname == "DMA_IRQ_PEND_REG0" and self.offset == "0x0014": # Bug in R40: Actually, Offset 0x0014 is REG1 and not REG0 again.
         rname = "DMA_IRQ_PEND_REG1"
-    elif rname == "ADDA_PR_CFG_REG" and self.offset == "0x0300": # Bug in R40: Actually, This is a duplicate.
+    elif h4 == "ADDA_PR Configuration Register" and rname == "ADDA_PR_CFG_REG" and self.offset == "0x0300": # Bug in R40: Actually, This is a duplicate.
         rname = "AC_PR_CFG"
-    elif rname == "KEYADC_DATA" and self.offset == "0x000C":
+    elif h4 == "KEYADC Data 0 Register" and rname == "KEYADC_DATA" and self.offset == "0x000C": # R40
         rname = "KEYADC_DATA0"
-    elif rname == "KEYADC_DATA" and self.offset == "0x0010":
+    elif h4 == "KEYADC Data 1 Register" and rname == "KEYADC_DATA" and self.offset == "0x0010": # R40
         rname = "KEYADC_DATA1"
-    elif rname == "PE_CFG2" and self.offset == "0x009C" and h4 == "PE Configure Register 3":
+    elif h4 == "PE Configure Register 3" and rname == "PE_CFG2" and self.offset == "0x009C" and h4 == "PE Configure Register 3": # R40
         rname = "PE_CFG3"
-    elif h4 == "TCON1 Basic5 Register" and rname == "TCON1_BASIC4_REG" and self.offset == "0x00A8":
+    elif h4 == "TCON1 Basic5 Register" and rname == "TCON1_BASIC4_REG" and self.offset == "0x00A8": # R40
         rname = "TCON1_BASIC5_REG"
-    elif h4 == "OHCI Control Register" and rname == "HcRevision" and self.offset == "0x0404":
+    elif h4 == "OHCI Control Register" and rname == "HcRevision" and self.offset == "0x0404": # R40
         rname = "HcControl"
-    elif h4 == "TSC Port Output Multiplex Control Register" and rname == "TSC_TSFMUXR" and self.offset == "0x0028":
+    elif h4 == "TSC Port Output Multiplex Control Register" and rname == "TSC_TSFMUXR" and self.offset == "0x0028": # R40
         rname = "TSC_OUTMUXR"
     elif h4 == "0x41C ADC DAP Left Low Average Coef Register" and rname == "AC_ADC_DAPLHAC" and self.offset == "0x41C": # A64
         rname = "AC_ADC_DAPLLAC"
