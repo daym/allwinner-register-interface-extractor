@@ -130,7 +130,8 @@ class State(object):
       print()
       self.in_table = False
   def process_text(self, text, attrib, xx):
-    #if text.strip() == "Bit 3: PHONEP": # "7.5.3.3.": # "MSGBOX (RISC-V)":
+    #if text.strip() == "TCON_TOP": # and self.in_table: # "TCON_LCD0,TCON_LCD1": # "7.5.3.3.": # "MSGBOX (RISC-V)":
+    #  print(attrib)
     #  import pdb
     #  pdb.set_trace()
     if self.in_register_name_multipart: # A64. It has "Register Name: <b>Foo</b>"
@@ -242,7 +243,11 @@ class State(object):
           i = self.table_column_lefts.index(left)
           xcolumn = self.table_columns[i]
           if text != xcolumn:
-              self.finish_this_table()
+              if text.find("_") != -1 and len([c for c in text if c in "abcdefghijklmnopqrstuvwxyz"]) == 0: # that's a R40 subheader--for example in "7.2.4. Register List".
+                  print("], ['#', {!r}], [".format(text))
+                  self.h4 = text # TODO: print it somehow
+              else:
+                  self.finish_this_table()
       #else:
       #    self.finish_this_table()
     if self.in_table and self.in_table_header and text.strip() != "":
@@ -299,7 +304,7 @@ class State(object):
           pass
         else:
           print("{!r}, ".format(text))
-      elif attrib["meaning"] == "h4" and self.in_table and not self.in_table_header and len(self.table_columns) > 3 and self.in_column_P(int(attrib['left']), len(self.table_columns) - 1):
+      elif attrib["meaning"] == "h4" and self.in_table and not self.in_table_header and len(self.table_columns) >= 3 and self.in_column_P(int(attrib['left']), len(self.table_columns) - 1):
         # This can be a repeated table column header--in which case we don't care--or a bolded field name--which we very much want. Distinguish those.
         words = text.split()
         columns = []
