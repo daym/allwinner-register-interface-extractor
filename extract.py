@@ -230,7 +230,7 @@ class State(object):
       return
     elif attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Base Address:"):
       self.offset = text.strip().replace("Offset:", "").strip()
-    elif attrib["meaning"] in ["h4", "table-cell"] and (text.strip().startswith("Module Name") or text.strip() == "Register Name") and not self.in_table_header: # module table. Case when "Module Name" is a column twice in the same table is also handled.  A64 sometimes doesn't have xx == {"b"}
+    elif attrib["meaning"] in ["h4", "table-cell"] and (text.strip().lower().startswith("module name") or text.strip() == "Register Name") and not self.in_table_header: # module table. Case when "Module Name" is a column twice in the same table is also handled.  A64 sometimes doesn't have xx == {"b"}
       #self.finish_this_table()
       rname = "Module List"
       if self.in_table != rname:
