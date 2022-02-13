@@ -8,6 +8,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 from lxml import etree
+from typing import NamedTuple, List
 
 import phase2_result
 from pprint import pprint
@@ -26,7 +27,7 @@ def clean_table(module, header, body, name):
     if item.find(":") != -1:
       prefix.append(item.strip())
     else:
-      for x in item.replace("Module Name", "Module_Name").replace("Base Address", "Base_Address").split():
+      for x in item.replace("Module Name", "Module_Name").replace("Module name", "Module_Name").replace("Base Address", "Base_Address").replace("Base address", "Base_Address").replace("Register Name", "Register_Name").replace("Register name", "Register_name").split():
         suffix.append(x)
   if suffix == ['Bit', 'Read/Write', 'Default/Hex', 'Description'] and len(body) >= 1 and body[0] == ["HCD ", "HC "]: # R40 bug in HcInterruptStatus
     suffix = ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']
@@ -45,6 +46,9 @@ def clean_table(module, header, body, name):
   if module is None:
       return module, header, body
   access_possibilities = ["R/W1C", "R/W", "R", "W", "/"]
+  if len(suffix) == 0: # ???
+      warning("Did not find proper header for {!r} {!r} {!r}.".format(header, body, name))
+      return module, header, body
   for row in body:
     if row == []:
       continue
@@ -83,7 +87,7 @@ def clean_table(module, header, body, name):
       row[len(row) - 2] = row[len(row) - 2] + sep + s
       del row[len(row) - 1]
     if len(row) != len(suffix):
-      warning("Table formatting in PDF is unknown: module={!r}, header={!r}, row={!r}".format(module, header, row))
+      warning("Table formatting in PDF is unknown: header={!r}, row={!r}".format(header, row))
   return module, header, body
 
 def unroll_instances(module):
@@ -99,34 +103,55 @@ def unroll_instances(module):
   #assert len(body) == 1, (header, body)
   # AssertionError: (['Module_Name', 'Base_Address'], [['I2S/PCM0 ', '0x02032000 '], ['I2S/PCM1 ', '0x02033000 '], ['I2S/PCM2 ', '0x02034000   ', ' ']])
 
-registers = {}
+# In the tree, all the dependencies point up to the ancestors. We have to reverse the edge direction, basically.
+# The phase2_result directory does NOT contain all the nodes. Some have been shadowed!
 
-for n in dir(phase2_result):
-  if n.startswith("__"):
-    continue
-  try:
-    module, header, body = getattr(phase2_result, n)
-  except ValueError:
-    continue
-  except TypeError:
-    continue
-  #if not module: # A64
-  #  module = "unsorted", ["Module_Name", "Base_Address"], [["x", "0"]] # FIXME
-  if module:
-    module_module, module_header, module_body = module
-    module_module = None # clean tree
-    module = clean_table(module_module, module_header, module_body, n)
-    module_module, module_header, module_body = module
-    if module_header[1] != ["Module_Name", "Base_Address"]: # those are not supported
-      continue
-    module = dict([(k, v) for k, v in unroll_instances(module)])
-  value = clean_table(module, header, body, n)
-  setattr(phase2_result, n, value)
-  module, header, body = value
-  module = repr(module)
-  if module not in registers:
-    registers[module] = []
-  registers[module].append((n, header, body))
+from collections import namedtuple
+
+def clean_up_input():
+    class Dnode(NamedTuple):
+        name: str
+        header: List
+        rows: List
+        children: List
+
+    dnode_by_id = {}
+    root_dnode = Dnode(name = "ROOT", header = ([], []), rows = [], children = [])
+    def walk_up(module, name):
+        # Every new module is represented by a DNode.
+        # children_by_id is used as a memoizer so we find the NEW modules only.
+        # The roots are remembered in ROOTS.
+        if id(module) in dnode_by_id:
+            return dnode_by_id[id(module)]
+        if module is None:
+            return root_dnode
+        module_module, module_header, module_body = module
+        x_module = clean_table(module_module, module_header, module_body, name = None)
+        x_module_module, x_module_header, x_module_body = x_module
+
+        dnode = Dnode(name = name, header = x_module_header, rows = x_module_body, children = [])
+        dnode_by_id[id(module)] = dnode
+        if len(module_header) > 0 and module_header[0].strip() == "Module Name":
+            parent_dnode = root_dnode
+        else:
+            parent_dnode = walk_up(module_module, None)
+        parent_dnode.children.append(dnode)
+        return dnode
+
+    # Loop over all visible bindings in phase2_result
+    for n in dir(phase2_result):
+        if n.startswith("__") or n == "Module_List":
+            pass
+        else:
+            x_module = getattr(phase2_result, n)
+            # Traverse ancestors.
+            # Note: (Eventually) loops over all objects in phase2_result
+            walk_up(x_module, n)
+            # container.append()
+
+    return root_dnode
+
+#  registers[module].append((n, header, body))
 
 __model = phase2_result.__model
 
@@ -379,6 +404,7 @@ def create_register(table_definition, name, addressOffset, register_description=
             "WC": "write-only",
             "WAC": "write-only",
             "WO": "write-only", # A64
+            "R/Wor": "read-write", # TODO: Special-case "R/W or R" with a case analysis
             "": None, # ?
     }[access_raw.replace(" ", "").strip()]
     if access:
@@ -630,7 +656,9 @@ def parse_Register(rspec, field_word_count = 1):
                 warning("{!r}: Invalid field {!r}: Bitrange error".format(register_name, register_field))
                 continue
             if max_bit < min_bit: # bug
-              if max_bit == 0 and min_bit > 10: # work around A64 bug
+              if max_bit == 15 and min_bit == 18: # reg HCCPARAMS in A64
+                max_bit, min_bit = min_bit, max_bit
+              elif max_bit == 0 and min_bit > 10: # work around A64 bug
                 max_bit, min_bit = min_bit, max_bit
               else:
                 error("{!r}: Invalid field {!r}: Bitrange error".format(register_name, register_field))
@@ -735,23 +763,62 @@ def parse_Offset(spec):
 svd_peripherals = etree.Element("peripherals")
 svd_root.append(svd_peripherals)
 
-for module, rspecs in registers.items():
-  module = eval(module, {})
-  if module is None: # for example CPU Architecture!
-     for a_name,a_header,a_body in rspecs:
-       if a_name == "CPU_Architecture":
-         a_prefix, a_suffix = a_header
-         svd_cpu = create_cpu(a_suffix, a_body)
-         svd_root.append(svd_cpu)
-     continue
-  peripherals = sorted(module.items())
-  module_name, module_baseAddress = peripherals[0]
+def pprint2(dnode, indent):
+        prefix = indent * " "
+        print("{}{}: {!r} (rows = {})".format(prefix, dnode.name, dnode.header, repr(dnode.rows)[:50]))
+        #dnode.rows
+        for child in dnode.children:
+            pprint2(child, indent + 4)
+
+root_dnode = clean_up_input()
+#print("QQQ")
+#pprint2(root_dnode, 0)
+
+#  registers[module].append((n, header, body))
+
+# CPU_Architecture: ([], ['Item']) (rows = [['Quad-core ARM Cortex', '-A7 Processor ', 'ARMv7)
+
+for module in root_dnode.children:
+  prefix, suffix = module.header
+  if module.name == "CPU_Architecture":
+    #print("ROWS", module.rows, file=sys.stderr) # FIXME
+    svd_cpu = create_cpu(suffix, module.rows)
+    svd_root.append(svd_cpu)
+    continue
+
+  peripherals = [r for r in module.rows if r != []]
+  peripherals = [(module_name.strip(), module_baseAddress.replace("(for HDMI)", "")) for module_name, module_baseAddress in peripherals]
+  #print("PERIPH", peripherals)
+  module_name, module_baseAddress, *rest = peripherals[0] # FIXME more rows
+  module_name = module_name.strip()
+  module_baseAddress = eval(module_baseAddress, {})
+
+  container = module
+  # FIXME: Handle children instead
+  if len(container.children) == 1 and container.children[0].header[1] == ['Register_Name', 'Offset', 'Description']:  # That's a summary. Skip it for now. FIXME: Handle it.
+    container = container.children[0]
+
+  assert suffix == ["Module_Name", "Base_Address"], module.header
+ #for module_row in module.rows:
+ #  print("MODULE ROW", module_row)
+
+  #for register in container.children:
+  #assert register.header[1][0:1] == ["Bit"], register.header
+  #peripherals = sorted(module.items())
+  #module_name, module_baseAddress = peripherals[0]
 
   #print("MOD {}: ".format(module), end=" QQ ")
   #print()
   svd_peripheral = create_peripheral(module_name, module_baseAddress, access="read-write", description=None, groupName=None) # FIXME ??
   svd_peripherals.append(svd_peripheral)
-  for x_module_name, x_module_baseAddress in peripherals[1:]:
+  #print("PERIPHERALS", peripherals)
+  for x_module_name, x_module_baseAddress, *x_rest in peripherals[1:]:
+    x_module_name = x_module_name.strip()
+    try:
+      x_module_baseAddress = eval(x_module_baseAddress, {}) # FIXME
+    except (ValueError, SyntaxError, NameError):
+      warning("FIXME IMPLEMENT {}".format(x_module_name))
+      continue
     svd_x_peripheral = create_peripheral(x_module_name, x_module_baseAddress, access="read-write", description=None, groupName=None) # FIXME ??
     svd_x_peripheral.attrib["derivedFrom"] = module_name
     svd_peripherals.append(svd_x_peripheral)
@@ -759,7 +826,16 @@ for module, rspecs in registers.items():
   svd_registers = etree.Element("registers")
   svd_peripheral.append(svd_registers)
 
+  #rspecs = container.children
+  rspecs = []
+  for dnode in container.children:
+    rspec = dnode.name, dnode.header, dnode.rows
+    rspecs.append(rspec)
+
+  #print("RSPECS", rspecs)
+  # rspecs: [Dnode(name='AC97_CLK_REG', header=(['Offset: 0x00BC'], ['Bit', 'Read/Write', 'Default/Hex', 'Description']), rows=[['31', ...
   common_loop_var, common_loop_min, common_loop_max = None, None, None
+
   registers = [x for x in [parse_Register(rspec) for rspec in rspecs] if x]
   for register in registers:
       assert len(register.meta) == 1
