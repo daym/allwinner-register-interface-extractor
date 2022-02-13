@@ -52,6 +52,8 @@ def clean_table(module, header, body, name):
   for row in body:
     if row == []:
       continue
+    if row[0:1] == ["#"]:
+      continue
     while len(row) >= 1 and row[0] == " ":
       del row[0]
     if len([x for x in row if x == " "]) > 0:
@@ -798,6 +800,11 @@ for module in root_dnode.children:
     container = container.children[0]
     # Skip it for now. FIXME: Handle it.
     summary = container
+    if len(summary.rows) > 0 and len(summary.rows[0]) == 1 and summary.rows[0][0] != "#" and summary.rows[0][0].strip().endswith(" Register"): # often, the "#" is missing.
+      summary.rows[0].insert(0, "#")
+    summary.rows[:] = [r for r in summary.rows if r != []]
+    for row in summary.rows:
+      print("SUMMARY", row, file=sys.stderr)
     #summary: name=None, header=([], ['Register_Name', 'Offset', 'Description']), rows=[['PLL_CPUX_CTRL_REG ', '0x0000
   assert not (len(container.children) == 1 and container.children[0].header[1] == ['Register_Name', 'Offset', 'Description']), module.rows
   assert suffix == ["Module_Name", "Base_Address"], module.header
