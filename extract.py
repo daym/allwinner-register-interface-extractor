@@ -232,10 +232,8 @@ class State(object):
       self.offset = text.strip().replace("Offset:", "").strip()
     elif attrib["meaning"] in ["h4", "table-cell"] and (text.strip().lower().startswith("module name") or text.strip() == "Register Name") and not self.in_table_header: # module table. Case when "Module Name" is a column twice in the same table is also handled.  A64 sometimes doesn't have xx == {"b"}
       #self.finish_this_table()
-      if text.strip().lower().startswith("module name"):
-        rname = "Module List"
-      else:
-        rname = "Register List"
+      # Using the same name here so chaining into a tree works
+      rname = "Module List"
       self.finish_this_table() # There could be multiple module tables, one after another.
       if self.in_table != rname:
         self.finish_this_table()
