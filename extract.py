@@ -22,7 +22,7 @@ fontspec_to_meaning = [
   ({'color': '#000000', 'family': 'Calibri', 'size': '120'}, "garbage"),
 
   # R40, A64
-  ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '15'}, "h4"),
+  ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '15'}, "h4"), # Note: A64 sometimes abuses this as h3
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '16'}, "h4"), # R40
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '90'}, "garbage"),
   ({'color': '#005ebd', 'family': 'ABCDEE+Calibri,Bold', 'size': '19'}, "h3"),
@@ -98,6 +98,9 @@ class State(object):
       print()
       self.in_table = False
   def process_text(self, text, attrib, xx):
+    #if text.strip() == "USB Host Register List": # "7.5.3.3.": # "MSGBOX (RISC-V)":
+    #  import pdb
+    #  pdb.set_trace()
     if self.in_register_name_multipart: # A64. It has "Register Name: <b>Foo</b>"
       assert (attrib["meaning"] == "h4" and xx == {"b"}) or attrib["meaning"] == "table-cell" or attrib["meaning"] == "h3", (self.page_number, attrib, xx)
       if text.strip(): # and self.in_table_header:
@@ -137,8 +140,13 @@ class State(object):
       return
     if attrib["meaning"] == "h0" and xx == {"b"}: # and text == "Contents"
       self.finish_this_table()
+    if attrib["meaning"] == "h4" and xx == {"b"} and text.strip().endswith("Register List"): # A64 abuses this as h3 (rarely)
+      self.h3 = text
+      attrib["meaning"] = "h3"
     if attrib["meaning"] == "h3" and xx == {"b"}: # and text.strip().endswith(" Register Description"):
       self.finish_this_table()
+      if text.strip() == "Register List": # new module starts
+        print("Module_List = None")
       self.h3 = text
       if self.h3.strip() == "CPU Architecture":
           # Alternative: Make it detect as h4.
@@ -167,8 +175,8 @@ class State(object):
       return
     elif attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Base Address:"):
       self.offset = text.strip().replace("Offset:", "").strip()
-    elif attrib["meaning"] in ["h4", "table-cell"] and text.strip().startswith("Module Name") and not self.in_table_header: # module table. Case when "Module Name" is a column twice in the same table is also handled.  A64 sometimes doesn't have xx == {"b"}
-      self.finish_this_table()
+    elif attrib["meaning"] in ["h4", "table-cell"] and (text.strip().startswith("Module Name") or text.strip() == "Register Name") and not self.in_table_header: # module table. Case when "Module Name" is a column twice in the same table is also handled.  A64 sometimes doesn't have xx == {"b"}
+      #self.finish_this_table()
       rname = "Module List"
       if self.in_table != rname:
         self.finish_this_table()
