@@ -95,6 +95,24 @@ class State(object):
         rname = "HcControl"
     elif h4 == "TSC Port Output Multiplex Control Register" and rname == "TSC_TSFMUXR" and self.offset == "0x0028":
         rname = "TSC_OUTMUXR"
+    elif h4 == "0x41C ADC DAP Left Low Average Coef Register" and rname == "AC_ADC_DAPLHAC" and self.offset == "0x41C": # A64
+        rname = "AC_ADC_DAPLLAC"
+    elif h4 == "0x434 ADC DAP Right Attack Time Register" and rname == "AC_ADC_DAPRDT" and self.offset == "0x434": # A64
+        rname = "AC_ADC_DAPRAT"
+    elif h4 == "0x440 ADC DAP Left Input Signal Low Average Coef Register" and rname == "AC_ADC_DAPLHNAC" and self.offset == "0x440": # A64
+        rname = "AC_ADC_DAPLLNAC"
+    elif h4 == "0x448 ADC DAP Right Input Signal Low Average Coef Register" and rname == "AC_ADC_DAPRHNAC" and self.offset == "0x448": # A64
+        rname = "AC_ADC_DAPRLNAC"
+    elif h4 == "0x698 DRC0 Smooth filter Gain Low Release Time Coef Register" and rname == "AC_DRC0_SFHRT" and self.offset == "0x698": # A64
+        rname = "AC_DRC0_SFLRT"
+    elif h4 == "0x798 DRC1 Smooth filter Gain Low Release Time Coef Register" and rname == "AC_DRC1_SFHRT" and self.offset == "0x798": # A64
+        rname = "AC_DRC1_SFLRT"
+    elif h4 == "CSI Channel_0 horizontal size Register" and rname == "CSI0_C0_INT_STA_REG" and self.offset == "0x0080": # A64
+        rname = "CSI0_C0_HSIZE_REG"
+    elif h4 == "TCON1 IO Polarity Register" and rname == "TCON1_IO_POL_REG" and self.offset == "0x00F4": # A64
+        rname = "TCON1_IO_TRI_REG"
+    elif h4 == "HcControl Register" and rname == "HcRevision" and self.offset == "0x404": # A64
+        rname = "HcControl"
     return rname
 
   def start_table(self, rname):
