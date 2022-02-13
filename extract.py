@@ -125,7 +125,7 @@ class State(object):
   def start_table(self, rname):
       #print("RNAME", rname, file=sys.stderr)
       orig_rname = rname
-      if self.prev_table_name == rname and rname != "Module List": # same-named things? Probably a mistake in the original PDF. Make sure we have both.
+      if self.prev_table_name == rname and rname != "Module List" and rname != "Register List": # same-named things? Probably a mistake in the original PDF. Make sure we have both.
         error("Table {!r} (offset: {!r}) is started again, even though we already saw the contents entirely.".format(rname, self.offset))
         sys.exit(1)
         rname = rname + "Q"
@@ -155,7 +155,7 @@ class State(object):
       print()
       self.in_table = False
   def process_text(self, text, attrib, xx):
-    #if text.strip() == "TCON_TOP": # and self.in_table: # "TCON_LCD0,TCON_LCD1": # "7.5.3.3.": # "MSGBOX (RISC-V)":
+    #if text.strip() == "0x01C74000": # "TCON_TV1": # and self.in_table: # "TCON_LCD0,TCON_LCD1": # "7.5.3.3.": # "MSGBOX (RISC-V)":
     #  print(attrib)
     #  import pdb
     #  pdb.set_trace()
@@ -232,7 +232,10 @@ class State(object):
       self.offset = text.strip().replace("Offset:", "").strip()
     elif attrib["meaning"] in ["h4", "table-cell"] and (text.strip().lower().startswith("module name") or text.strip() == "Register Name") and not self.in_table_header: # module table. Case when "Module Name" is a column twice in the same table is also handled.  A64 sometimes doesn't have xx == {"b"}
       #self.finish_this_table()
-      rname = "Module List"
+      if text.strip().lower().startswith("module name"):
+        rname = "Module List"
+      else:
+        rname = "Register List"
       if self.in_table != rname:
         self.finish_this_table()
         self.start_table(rname)
