@@ -113,6 +113,13 @@ class State(object):
         rname = "TCON1_IO_TRI_REG"
     elif h4 == "HcControl Register" and rname == "HcRevision" and self.offset == "0x404": # A64
         rname = "HcControl"
+    elif h4 == "0x0010 DMAC IRQ Pending Status Register 0" and rname == "DMAC_IRQ_PEND_REG0" and self.offset == "0x0010": # D1
+        rname = "DMAC_IRQ_PEND_REG0" # ok
+    elif h4 == "0x0014 DMAC IRQ Pending Status Register 1" and rname == "DMAC_IRQ_PEND_REG0" and self.offset == "0x0010": # D1
+        rname = "DMAC_IRQ_PEND_REG1"
+        self.offset = "0x0014" # OOPS!
+    elif h4 == "0x0028 THS Alarm Off Interrupt Status Register" and rname == "THS_ALARM_INTS" and self.offset == "0x0028": # D1
+        rname = "THS_ALARM0_INTS"
     return rname
 
   def start_table(self, rname):
@@ -262,6 +269,9 @@ class State(object):
           xcolumn = self.table_columns[i]
           if text != xcolumn:
               if text.find("_") != -1 and len([c for c in text if c in "abcdefghijklmnopqrstuvwxyz"]) == 0: # that's a R40 subheader--for example in "7.2.4. Register List".
+                  print("], ['#', {!r}], [".format(text))
+                  self.h4 = text # TODO: print it somehow
+              elif text.strip().endswith(" Register") and [x.strip() for x in self.table_columns] == ['Register Name', 'Offset', 'Description']: # D1
                   print("], ['#', {!r}], [".format(text))
                   self.h4 = text # TODO: print it somehow
               else:
