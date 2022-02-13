@@ -68,16 +68,48 @@ class State(object):
     self.in_register_name_multipart = False
     self.table_header_autobolder = False
     self.prev_table_name = None
+
+  def fixed_table_name(self, rname):
+    h4 = "" if not self.h4 else self.h4.split("(")[0].strip()
+    rname = rname.split("(n=")[0] # "NDFC_USER_DATAn(n=0~15)" in R40
+    if rname == "HcPeriodCurrentED(PCED)": # R40
+        rname = "HcPeriodCurrentED" # FIXME
+    rname = rname.replace("_C0~3", "") # in R40 # FIXME
+    if rname == "LOMIXSC" and self.offset == "0x02": # Bug in R40: Uses the same register name twice for different offsets
+        rname = "ROMIXSC"
+    #elif rname == "DMA_IRQ_PEND_REG0" and self.offset == "0x0010": # Bug in R40: Actually, Offset 0x0010 is REG1 and not REG0 again.
+    #  rname = "DMA_IRQ_PEND_REG0"
+    elif rname == "DMA_IRQ_PEND_REG0" and self.offset == "0x0014": # Bug in R40: Actually, Offset 0x0014 is REG1 and not REG0 again.
+        rname = "DMA_IRQ_PEND_REG1"
+    elif rname == "ADDA_PR_CFG_REG" and self.offset == "0x0300": # Bug in R40: Actually, This is a duplicate.
+        rname = "AC_PR_CFG"
+    elif rname == "KEYADC_DATA" and self.offset == "0x000C":
+        rname = "KEYADC_DATA0"
+    elif rname == "KEYADC_DATA" and self.offset == "0x0010":
+        rname = "KEYADC_DATA1"
+    elif rname == "PE_CFG2" and self.offset == "0x009C" and h4 == "PE Configure Register 3":
+        rname = "PE_CFG3"
+    elif h4 == "TCON1 Basic5 Register" and rname == "TCON1_BASIC4_REG" and self.offset == "0x00A8":
+        rname = "TCON1_BASIC5_REG"
+    elif h4 == "OHCI Control Register" and rname == "HcRevision" and self.offset == "0x0404":
+        rname = "HcControl"
+    elif h4 == "TSC Port Output Multiplex Control Register" and rname == "TSC_TSFMUXR" and self.offset == "0x0028":
+        rname = "TSC_OUTMUXR"
+    return rname
+
   def start_table(self, rname):
+      #print("RNAME", rname, file=sys.stderr)
+      orig_rname = rname
       if self.prev_table_name == rname and rname != "Module List": # same-named things? Probably a mistake in the original PDF. Make sure we have both.
-        warning("Table {!r} is started again, even though we already saw the contents entirely.".format(rname))
+        error("Table {!r} (offset: {!r}) is started again, even though we already saw the contents entirely.".format(rname, self.offset))
+        sys.exit(1)
         rname = rname + "Q"
       self.finish_this_table()
       print()
       print("# START TABLE", rname)
       print("{} = Module_List, [".format(quote(rname)))
       self.in_table = rname
-      self.prev_table_name = rname
+      self.prev_table_name = orig_rname
       self.table_columns = []
       self.table_left = None
       self.table_column_lefts = []
@@ -98,7 +130,7 @@ class State(object):
       print()
       self.in_table = False
   def process_text(self, text, attrib, xx):
-    #if text.strip() == "USB Host Register List": # "7.5.3.3.": # "MSGBOX (RISC-V)":
+    #if text.strip() == "Bit 3: PHONEP": # "7.5.3.3.": # "MSGBOX (RISC-V)":
     #  import pdb
     #  pdb.set_trace()
     if self.in_register_name_multipart: # A64. It has "Register Name: <b>Foo</b>"
@@ -109,10 +141,7 @@ class State(object):
         rname = text.strip()
         if text.strip() == "Bit": # entirely missing name
           rname = "".join(c for c in self.h4 if c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_")
-        rname = rname.split("(n=")[0] # "NDFC_USER_DATAn(n=0~15)" in R40
-        if rname == "HcPeriodCurrentED(PCED)": # R40
-            rname = "HcPeriodCurrentED" # FIXME
-        rname = rname.replace("_C0~3", "") # in R40 # FIXME
+        rname = self.fixed_table_name(rname)
         if self.in_table != rname:
           #assert text.strip() != "Read/Write"
           self.finish_this_table()
@@ -198,10 +227,7 @@ class State(object):
         self.in_register_name_multipart = True
         return
       else: # see copy of this in "if self.in_register_name_multipart"
-        rname = rname.split("(n=")[0] # "NDFC_USER_DATAn(n=0~15)" in R40
-        if rname == "HcPeriodCurrentED(PCED)": # R40
-            rname = "HcPeriodCurrentED" # FIXME
-        rname = rname.replace("_C0~3", "") # in R40 # FIXME
+        rname = self.fixed_table_name(rname)
         if self.in_table != rname:
           self.finish_this_table()
           self.start_table(rname)
