@@ -155,7 +155,7 @@ class State(object):
       print()
       self.in_table = False
   def process_text(self, text, attrib, xx):
-    #if text.strip() == "Bus Clock Gating Register 2": # "TCON_TV1": # and self.in_table: # "TCON_LCD0,TCON_LCD1": # "7.5.3.3.": # "MSGBOX (RISC-V)":
+    #if text.strip() == "TV Encoder Sync and VBI Level Register": # "TCON_TV1": # and self.in_table: # "TCON_LCD0,TCON_LCD1": # "7.5.3.3.": # "MSGBOX (RISC-V)":
     #  print(attrib)
     #  import pdb
     #  pdb.set_trace()
@@ -271,7 +271,7 @@ class State(object):
           i = self.table_column_lefts.index(left)
           xcolumn = self.table_columns[i]
           if text != xcolumn:
-              if text.find("_") != -1 and len([c for c in text if c in "abcdefghijklmnopqrstuvwxyz"]) == 0: # that's a R40 subheader--for example in "7.2.4. Register List".
+              if (text.find("_") != -1 and len([c for c in text if c in "abcdefghijklmnopqrstuvwxyz"]) == 0) or text.strip() == "TVE": # that's a R40 subheader--for example in "7.2.4. Register List".
                   print("], ['#', {!r}], [".format(text))
                   self.h4 = text # TODO: print it somehow
               elif text.strip().endswith(" Register") and [x.strip() for x in self.table_columns] == ['Register Name', 'Offset', 'Description']: # D1
