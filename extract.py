@@ -236,6 +236,7 @@ class State(object):
         rname = "Module List"
       else:
         rname = "Register List"
+      self.finish_this_table() # There could be multiple module tables, one after another.
       if self.in_table != rname:
         self.finish_this_table()
         self.start_table(rname)
