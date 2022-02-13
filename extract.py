@@ -155,7 +155,7 @@ class State(object):
       print()
       self.in_table = False
   def process_text(self, text, attrib, xx):
-    #if text.strip() == "0x01C74000": # "TCON_TV1": # and self.in_table: # "TCON_LCD0,TCON_LCD1": # "7.5.3.3.": # "MSGBOX (RISC-V)":
+    #if text.strip() == "Bus Clock Gating Register 2": # "TCON_TV1": # and self.in_table: # "TCON_LCD0,TCON_LCD1": # "7.5.3.3.": # "MSGBOX (RISC-V)":
     #  print(attrib)
     #  import pdb
     #  pdb.set_trace()
@@ -234,8 +234,9 @@ class State(object):
       #self.finish_this_table()
       # Using the same name here so chaining into a tree works
       rname = "Module List"
-      self.finish_this_table() # There could be multiple module tables, one after another.
-      if self.in_table != rname:
+      cname = "module name" if text.strip().lower().startswith("module name") else "register name"
+      #if self.table_columns != ["Item"] and self.table_columns != ['Module Name ', 'Base Address '] and self.table_columns != ['Register Name ', 'Offset ', 'Description ']:
+      if self.in_table != rname or (self.in_table and len(self.table_columns) > 0 and self.table_columns[0].strip().lower() != cname):
         self.finish_this_table()
         self.start_table(rname)
         #print("{!r}, ".format(text))
