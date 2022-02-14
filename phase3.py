@@ -117,6 +117,8 @@ def clean_table(module, header, body, name):
       row[len(row) - 2] = row[len(row) - 2] + sep + s
       del row[len(row) - 1]
     if len(row) != len(suffix):
+      if len(row) == 0:
+        continue
       warning("Table formatting in PDF is unknown: header={!r}, row={!r}".format(header, row))
   return module, header, body
 
