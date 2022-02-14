@@ -1067,8 +1067,7 @@ for module in root_dnode.children:
           #  registers_not_in_any_peripheral.remove(register.name + "_REG")
 
   if len(registers_not_in_any_peripheral) > 0:
-    # TODO: if there is exactly one filter for all the peripherals, add these registers anyway
-    warning("{!r}: Registers not used in any peripheral: {!r}, filters = {!r}".format(module.rows, sorted(list(registers_not_in_any_peripheral)), filters))
+    warning("{!r}: Registers not used in any peripheral: {!r}".format(module.rows, sorted(list(registers_not_in_any_peripheral))))
 
 sys.stdout.flush()
 et.write(sys.stdout.buffer, pretty_print=True)
