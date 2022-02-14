@@ -589,6 +589,8 @@ re_field_name_good = re.compile(r"^(([0-9]*[A-Z][A-Z0-9]*_[A-Z0-9./_-]+[a-zA-Z0-
 connectives = set(["a", "the", "has", "is", "are", "includes", "the", "to", "for", "largest", "between", "because", "how", "whether", "indicates", "specifies", "by", "when", "of", "contains", "initiate", "related", "if", "affected", "dedicated", "support", "and"])
 nouns = set(["threshold", "peak", "coefficient", "rms", "receive", "transmit", "gain", "smooth", "filter", "signal", "average", "attack", "sustain", "decay", "hold", "release", "size", "count", "enable", "mode", "time", "channel", "noise"])
 
+re_a_of_the_b = re.compile(r"^([A-Z]+)_OF_THE_([A-Z_]+)$")
+
 def field_name_from_description(description, field_word_count):
         """ Returns the field name extracted from a description.  Returns the empty string if that cannot be done.
             Also returns whether the match was very good, and whether the match was very bad. """
@@ -654,6 +656,11 @@ def field_name_from_description(description, field_word_count):
            #print("NAME", name, file=sys.stderr)
            if not re_name.match(name):
              name = ""
+           m = re_a_of_the_b.match(name)
+           if m:
+             a = m.group(1)
+             b = m.group(2)
+             name = "{}_{}".format(b, a)
            if stripped:
               guessed = True
               #info("{!r}: Guessed {!r} from {!r}".format(register_name, name, description))
