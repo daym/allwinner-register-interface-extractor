@@ -593,6 +593,10 @@ def field_name_from_description(description, field_word_count):
         matched_field_name_good = False
         guessed = False
         if description:
+           description = description.replace("_ ", "_") # "TF_ DRQ_EN"
+           #if description.find("DRQ_EN") != -1:
+           #  import pdb
+           #  pdb.set_trace()
            q = description.split(". ")[0].split(",")[0]
            if field_word_count == 1 or field_word_count == 6:
                m = re_field_name_good.match("{} ".format(q))
