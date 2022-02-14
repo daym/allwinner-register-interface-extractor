@@ -27,7 +27,7 @@ def clean_table(module, header, body, name):
     if item.find(":") != -1:
       prefix.append(item.strip())
     else:
-      for x in item.replace("Module Name", "Module_Name").replace("Module name", "Module_Name").replace("Base Address", "Base_Address").replace("Base address", "Base_Address").replace("Register Name", "Register_Name").replace("Register name", "Register_name").split():
+      for x in item.replace("Module Name", "Module_Name").replace("Module name", "Module_Name").replace("Base Address", "Base_Address").replace("Base address", "Base_Address").replace("Register Name", "Register_Name").replace("Register name", "Register_name").replace("Register Description", "Register_Description").split():
         suffix.append(x)
   if suffix == ['Bit', 'Read/Write', 'Default/Hex', 'Description'] and len(body) >= 1 and body[0] == ["HCD ", "HC "]: # R40 bug in HcInterruptStatus
     suffix = ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']
@@ -38,13 +38,41 @@ def clean_table(module, header, body, name):
   header = (prefix, suffix)
   while body[0:1] == [[]] or body[0:1] == [[" "]]:
     del body[0]
-  for row in body:
-    while row[-1:] == [" "] or row[-1:] == ["CCU register list: "]:
-      del row[-1]
+  #for row in body:
+  #  while row[-1:] == [" "] or row[-1:] == ["CCU register list: "]:
+  #    del row[-1]
+  any_match = True
+  while any_match:
+    any_match = False
+    nrows = []
+    for row in body:
+      if len(row) > 1 and row[-1].strip().endswith("register list:"): # D1 sometimes puts "... register list:" right into the previous line
+        any_match = True
+        s = row[-1]
+        del row[-1]
+        nrows.append(row)
+        nrows.append([s])
+      else:
+        nrows.append(row)
+    body[:] = nrows
+
+  if body[-1][-1].strip().endswith("register list:"): # D1 sometimes puts "... register list:" right into the previous module-decl.
+    s = body[-1][-1]
+    del body[-1][-1]
+    while body[-1:] == [[]] or body[-1:] == [[' ']]:
+     del body[-1]
+    body.append([s])
   while body[-1:] == [[]] or body[-1:] == [[' ']]:
      del body[-1]
+
   if module is None:
-      return module, header, body
+     if len(suffix) > 1:
+         for row in body:
+            while len(row) > len(suffix):
+              s = row[-1]
+              del row[-1]
+              row[-1] = "{} {}".format(row[-1], s)
+     return module, header, body
   access_possibilities = ["R/W1C", "R/W", "R", "W", "/"]
   if len(suffix) == 0: # ???
       warning("Did not find proper header for {!r} {!r} {!r}.".format(header, body, name))
@@ -780,103 +808,243 @@ root_dnode = clean_up_input()
 
 # CPU_Architecture: ([], ['Item']) (rows = [['Quad-core ARM Cortex', '-A7 Processor ', 'ARMv7)
 
+class Summary(NamedTuple):
+    parts: List  # FIXME: Dict
+    alternatives: List # FIXME: Dict
+
+re_a_slash_b = re.compile(r"^([A-Za-z]*)([0-9]+)/([0-9]+)$")
+def parse_Summary(container, module):
+    summary = container
+    # Special case for D1: If the MODULE ends in "CCU register list: ", then move that one to the summary instead.
+    if len(module.rows[-1]) == 1 and module.rows[-1][0].strip().endswith(" register list:"):
+      r = module.rows[-1][0]
+      del module.rows[-1]
+      summary.rows.insert(0, [r])
+    else:
+      if len(summary.rows) > 0 and len(summary.rows[0]) == 1 and summary.rows[0][0] != "#": # often, the "#" is missing for the first row.
+        summary.rows[0].insert(0, "#")
+    module_prefixes = set([row[0].split("_", 1)[0] for row in module.rows if len(row) > 1 and row[0].find("_") != -1])
+    # Special case for D1: For the " register list: " cases, infer the names of the peripherals they mean
+    for row in summary.rows:
+      if len(row) > 0 and row[0].strip().lower() == "analog domain register": # it's not bold--so it cannot be detected by extract.py
+        row.insert(0, "#")
+      if len(row) == 1 and row[0].strip().endswith(" register list:"):
+        n = row[0].strip()[:-len(" register list:")].strip().replace(" ", "_")
+        m = re_a_slash_b.match(n)
+        p1 = n
+        p2 = n
+        if m:
+          p = m.group(1)
+          a = m.group(2)
+          b = m.group(3)
+          p1 = "{}{}".format(p, a)
+          p2 = "{}{}".format(p, b)
+        if len(module_prefixes) == 1 and not n.startswith(list(module_prefixes)[0]): # Example: "CSIC"
+          module_prefix = list(module_prefixes)[0]
+          p1 = "{}_{}".format(module_prefix, p1)
+          p2 = "{}_{}".format(module_prefix, p2)
+        choices = set([p1, p2])
+        row[:] = ["#", ",".join(choices)]
+    summary.rows[:] = [r for r in summary.rows if r != []]
+
+    nrows = []
+    prefix = ""
+    for row in summary.rows:
+      if len(row) > 0 and row[0].endswith("_") and len(row[0]) > 15: # ['TCON_CLK_GATE_AND_HDMI_SRC_', 'MSGBOX_WR_INT_THRESHOLD_']: # word wrap
+        prefix = row[0]
+      elif len(row) > 0 and row[0].endswith("_ENTR") and len(row[0]) > 15:
+        prefix = row[0]
+      elif len(row) > 0 and row[0].strip() == "CSIC_DMA_BUF_ADDR_FIFO0_ENTR" and len(row[0]) > 15:
+        prefix = row[0]
+      elif len(row) > 0 and row[0].strip() == "CSIC_DMA_BUF_ADDR_FIFO_CON_R" and len(row[0]) > 15:
+        prefix = row[0]
+      else:
+        nrows.append(["{}{}".format(prefix, row[0])] + row[1:])
+        prefix = ""
+    summary.rows[:] = nrows
+    #print("MODULE", module.rows, file=sys.stderr)
+    #print("SUM", summary.rows, file=sys.stderr)
+
+    parts = {}
+    #mainkey = ",".join([r[0].strip() for r in module.rows if r[0].strip()])
+    mainkey = "ALWAYS"
+    part = mainkey
+    parts[part] = []
+    offsets = []
+    for row in summary.rows:
+      if len(row) > 0 and row[0].find(" 0x") != -1:
+          a, b = row[0].split("0x", 1)
+          row.insert(0, a)
+          row[1] = b
+      while len(row) > 3:
+          a = row[-1]
+          del row[-1]
+          row[-1] = row[-1] + " " + a
+      if row[0] == "#":
+          part = row[1].strip().upper()
+          assert part not in parts, (part, module.rows)
+          parts[part] = []
+      elif len(row) == 2:
+          name, offset = row
+          description = name
+          offsets.append(offset.strip())
+          parts[part].append(tuple(row))
+      elif len(row) == 3:
+          name, offset, description = row
+          offsets.append(offset.strip())
+          parts[part].append(tuple(row))
+      else:
+          if repr(row).find("Reserved") != -1:
+            pass
+          else:
+            assert len(row) == 3, (row, module.rows)
+      #print("SUMMARY", row, file=sys.stderr)
+    x_mainkey = ",".join([r[0].strip() for r in module.rows if r[0].strip()]).upper()
+    if len(parts) == 1 or (x_mainkey in ["Audio Codec".upper(), "AC"] and "Analog domain Register".upper() in parts): # the latter is indirect-access.
+      parts[x_mainkey] = parts[mainkey]
+      del parts[mainkey]
+    if parts.get("mainkey") and len(parts[mainkey]) == 0:
+      del parts[mainkey]
+    if len(offsets) != len(set(offsets)): # offsets are not unique. That means the entire thing is probably a list of ALTERNATIVES, not parts.
+      return Summary(parts = [], alternatives = parts), container
+    else:
+      return Summary(parts = parts, alternatives = []), container
+
 for module in root_dnode.children:
   prefix, suffix = module.header
   if module.name == "CPU_Architecture":
-    #print("ROWS", module.rows, file=sys.stderr) # FIXME
     svd_cpu = create_cpu(suffix, module.rows)
     svd_root.append(svd_cpu)
     continue
 
+  #print("PERIPH", peripherals)
+  container = module
+  filters = {}
+  if len(container.children) == 1 and container.children[0].header[1] in [['Register_Name', 'Offset', 'Description'], ['Register_Name', 'Offset', 'Register_name'], ['Register_Name', 'Offset', 'Register_Description']]:  # That's a summary.
+    container = container.children[0]
+    summary, container = parse_Summary(container, module)
+    # Note: Possible key: "Analog domain Register", which is not an extra module.
+    if summary.alternatives:
+      #from pprint import pprint
+      #pprint(summary.alternatives, sys.stderr)
+      for keys, alternatives in summary.alternatives.items():
+        keys = [k.strip() for k in keys.split(",")]
+        if len([key for key in keys if key.strip() == "TVD"]) > 0:
+          keys.remove("TVD")
+          keys.append("TVD0")
+          keys.append("TVD1")
+          keys.append("TVD2")
+          keys.append("TVD3")
+        if len([key for key in keys if key.strip() == "UART"]) > 0:
+          keys.remove("UART")
+          keys.append("UART0")
+          keys.append("UART1")
+          keys.append("UART2")
+          keys.append("UART3")
+          keys.append("UART4")
+          keys.append("UART5")
+          keys.append("UART6")
+          keys.append("UART7")
+          keys.append("UART8")
+          keys.append("UART9")
+        if len([key for key in keys if key.strip() == "CSI"]) > 0:
+          keys.remove("CSI")
+          keys.append("CSI1")
+          keys.append("CSI0")
+        for key in keys:
+          key = key.strip().upper()
+          assert key
+          #assert key == "ALWAYS" or key == "ANALOG DOMAIN REGISTER" or key in d_peripherals, (key, module.rows)
+          assert key not in filters
+          filters[key] = set(x[0].strip() for x in alternatives)
+      #print("SUM2", filters, file=sys.stderr)
+      #from pprint import pprint
+      #pprint(summary.alternatives, sys.stderr)
+      #sys.exit(1)
+    # Skip it for now. FIXME: Handle it.
+  assert not (len(container.children) == 1 and container.children[0].header[1] == ['Register_Name', 'Offset', 'Description']), module.rows
+  assert suffix == ["Module_Name", "Base_Address"], module.header
   peripherals = [r for r in module.rows if r != []]
   peripherals = [(module_name.strip(), module_baseAddress.replace("(for HDMI)", "")) for module_name, module_baseAddress in peripherals]
-  #print("PERIPH", peripherals)
-  module_name, module_baseAddress, *rest = peripherals[0] # FIXME more rows
+  d_peripherals = dict(peripherals)
+
+  module_name, module_baseAddress, *rest = peripherals[0]
   module_name = module_name.strip()
   module_baseAddress = eval(module_baseAddress, {})
 
-  container = module
-  if len(container.children) == 1 and container.children[0].header[1] == ['Register_Name', 'Offset', 'Description']:  # That's a summary.
-    container = container.children[0]
-    # Skip it for now. FIXME: Handle it.
-    summary = container
-    if len(summary.rows) > 0 and len(summary.rows[0]) == 1 and summary.rows[0][0] != "#" and summary.rows[0][0].strip().endswith(" Register"): # often, the "#" is missing.
-      summary.rows[0].insert(0, "#")
-    summary.rows[:] = [r for r in summary.rows if r != []]
-    for row in summary.rows:
-      print("SUMMARY", row, file=sys.stderr)
-    #summary: name=None, header=([], ['Register_Name', 'Offset', 'Description']), rows=[['PLL_CPUX_CTRL_REG ', '0x0000
-  assert not (len(container.children) == 1 and container.children[0].header[1] == ['Register_Name', 'Offset', 'Description']), module.rows
-  assert suffix == ["Module_Name", "Base_Address"], module.header
- #for module_row in module.rows:
- #  print("MODULE ROW", module_row)
-
-  #for register in container.children:
-  #assert register.header[1][0:1] == ["Bit"], register.header
-  #peripherals = sorted(module.items())
-  #module_name, module_baseAddress = peripherals[0]
-
-  #print("MOD {}: ".format(module), end=" QQ ")
-  #print()
-  svd_peripheral = create_peripheral(module_name, module_baseAddress, access="read-write", description=None, groupName=None) # FIXME ??
-  svd_peripherals.append(svd_peripheral)
-  #print("PERIPHERALS", peripherals)
-  for x_module_name, x_module_baseAddress, *x_rest in peripherals[1:]:
-    x_module_name = x_module_name.strip()
-    try:
-      x_module_baseAddress = eval(x_module_baseAddress, {}) # FIXME
-    except (ValueError, SyntaxError, NameError):
-      warning("FIXME IMPLEMENT {}".format(x_module_name))
-      continue
-    svd_x_peripheral = create_peripheral(x_module_name, x_module_baseAddress, access="read-write", description=None, groupName=None) # FIXME ??
-    svd_x_peripheral.attrib["derivedFrom"] = module_name
-    svd_peripherals.append(svd_x_peripheral)
-
-  svd_registers = etree.Element("registers")
-  svd_peripheral.append(svd_registers)
-
-  #rspecs = container.children
+  registers_not_in_any_peripheral = set()
   rspecs = []
   for dnode in container.children:
     rspec = dnode.name, dnode.header, dnode.rows
+    registers_not_in_any_peripheral.add(dnode.name)
     rspecs.append(rspec)
+  for x_module_name, x_module_baseAddress, *rest in peripherals:
+    x_module_name = x_module_name.strip()
+    #if x_module_name == "CSI0":
+    #  import pdb
+    #  pdb.set_trace()
+    try:
+      x_module_baseAddress = eval(x_module_baseAddress, {})
+    except (ValueError, SyntaxError, NameError):
+      warning("FIXME IMPLEMENT {}".format(x_module_name))
+      continue
+    svd_peripheral = create_peripheral(x_module_name, x_module_baseAddress, access="read-write", description=None, groupName=None) # FIXME ??
+    svd_peripherals.append(svd_peripheral)
+    if x_module_name != module_name and len(filters) == 0: # the peripherals are equal to each other
+      svd_peripheral.attrib["derivedFrom"] = module_name
+    else:
+      svd_registers = etree.Element("registers")
+      svd_peripheral.append(svd_registers)
 
-  #print("RSPECS", rspecs)
-  # rspecs: [Dnode(name='AC97_CLK_REG', header=(['Offset: 0x00BC'], ['Bit', 'Read/Write', 'Default/Hex', 'Description']), rows=[['31', ...
-  common_loop_var, common_loop_min, common_loop_max = None, None, None
+      #rspecs = container.children
 
-  registers = [x for x in [parse_Register(rspec) for rspec in rspecs] if x]
-  for register in registers:
-      assert len(register.meta) == 1
-      register_offset = register.meta[0]
-      assert(register_offset.startswith("Offset:"))
-      try:
-          register_offset = parse_Offset(register_offset)
-          nN_match = re_nN_tilde.search(register_offset)
-          if nN_match:
-              before_part, loop_var, loop_min, loop_max, after_part = re_nN_tilde.split(register_offset)
-              loop_min = int(loop_min)
-              loop_max = int(loop_max)
-              register_offset = before_part
-              if (common_loop_var, common_loop_min, common_loop_max) == (None, None, None):
-                  common_loop_var, common_loop_min, common_loop_max = loop_var, loop_min, loop_max
-              if (common_loop_var, common_loop_min, common_loop_max) != (loop_var, loop_min, loop_max):
-                  warning("{!r}: Inconsistent peripheral array (skipping the entire thing): ({!r}, {!r}, {!r}) vs ({!r}, {!r}, {!r})".format(register.name, loop_var, loop_min, loop_max, common_loop_var, common_loop_min, common_loop_max))
-                  continue
-          else:
-              loop_min = 0
-              loop_max = 0
-          # Note: can contain N, n
-          spec = register_offset
-          for N in range(loop_min, loop_max + 1):
-              register_offset = eval(spec[len("Offset:"):].strip(), {"n": N, "N": N})
-      except (SyntaxError, NameError, TypeError):
-          warning("Offset is too complicated: {!r}".format(register_offset))
-          import traceback
-          traceback.print_exc()
-          continue
-      svd_register = create_register(register, register.name, register_offset, register_description=None) # FIXME: description
-      svd_registers.append(svd_register)
+      common_loop_var, common_loop_min, common_loop_max = None, None, None
+
+      registers = [x for x in [parse_Register(rspec) for rspec in rspecs] if x]
+      #print("FILTERS", filters, file=sys.stderr)
+      for register in registers:
+          #print("FILTERS", filters.keys())
+          if len(filters) > 0 and register.name not in filters[x_module_name.upper()]:
+            info("Filtered out register {!r} because {!r}.{!r} is not supposed to be in this alterantive.".format(register.name, module_name, register.name))
+            continue
+          assert len(register.meta) == 1
+          register_offset = register.meta[0]
+          assert(register_offset.startswith("Offset:"))
+          try:
+              register_offset = parse_Offset(register_offset)
+              nN_match = re_nN_tilde.search(register_offset)
+              if nN_match:
+                  before_part, loop_var, loop_min, loop_max, after_part = re_nN_tilde.split(register_offset)
+                  loop_min = int(loop_min)
+                  loop_max = int(loop_max)
+                  register_offset = before_part
+                  if (common_loop_var, common_loop_min, common_loop_max) == (None, None, None):
+                      common_loop_var, common_loop_min, common_loop_max = loop_var, loop_min, loop_max
+                  if (common_loop_var, common_loop_min, common_loop_max) != (loop_var, loop_min, loop_max):
+                      warning("{!r}: Inconsistent peripheral array (skipping the entire thing): ({!r}, {!r}, {!r}) vs ({!r}, {!r}, {!r})".format(register.name, loop_var, loop_min, loop_max, common_loop_var, common_loop_min, common_loop_max))
+                      continue
+              else:
+                  loop_min = 0
+                  loop_max = 0
+              # Note: can contain N, n
+              spec = register_offset
+              for N in range(loop_min, loop_max + 1):
+                  register_offset = eval(spec[len("Offset:"):].strip(), {"n": N, "N": N})
+          except (SyntaxError, NameError, TypeError):
+              warning("Offset is too complicated: {!r}".format(register_offset))
+              import traceback
+              traceback.print_exc()
+              continue
+          svd_register = create_register(register, register.name, register_offset, register_description=None) # FIXME: description
+          svd_registers.append(svd_register)
+          if register.name in registers_not_in_any_peripheral:
+            registers_not_in_any_peripheral.remove(register.name)
+          #if register.name + "_REG" in registers_not_in_any_peripheral: # R40... sigh
+          #  registers_not_in_any_peripheral.remove(register.name + "_REG")
+
+  if len(registers_not_in_any_peripheral) > 0:
+    # TODO: if there is exactly one filter for all the peripherals, add these registers anyway
+    warning("{!r}: Registers not used in any peripheral: {!r}".format(module.rows, sorted(list(registers_not_in_any_peripheral))))
 
 sys.stdout.flush()
 et.write(sys.stdout.buffer, pretty_print=True)
