@@ -1102,6 +1102,8 @@ for module in root_dnode.children:
               # Note: can contain N, n
               spec = register_offset
               for N in range(loop_min, loop_max + 1):
+                  eval_env["N"] = N
+                  eval_env["n"] = N
                   register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
           except (SyntaxError, NameError, TypeError):
               warning("Offset is too complicated: {!r}".format(register_offset))
