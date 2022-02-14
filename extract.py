@@ -166,7 +166,7 @@ class State(object):
         # Note: This has another copy!
         rname = text.strip()
         if text.strip() == "Bit": # entirely missing name
-          rname = "".join(c for c in self.h4 if c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_")
+          rname = "".join(c for c in self.h4.split("(")[0] if c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_")
         rname = self.fixed_table_name(rname)
         if self.in_table != rname:
           #assert text.strip() != "Read/Write"
