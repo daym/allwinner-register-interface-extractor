@@ -822,8 +822,10 @@ re_n_le_lt = re.compile(r"[(]([0-9]+)≤n<([0-9]+)[)]")
 re_nN_tilde = re.compile(r"[(]([NnP])\s*=\s*([0-9]+)~([0-9]+)[)]")
 re_n_range = re.compile(r"[(]([NnP])\s*=\s*([0-9,]+)[)]")
 
-def parse_Offset(spec):
-    register_offset = spec
+def parse_Offset(register):
+    assert len(register.meta) == 1
+    register_offset = register.meta[0]
+    assert(register_offset.startswith("Offset:"))
     register_offset = re_nN_tilde.sub(lambda match: "({}={})".format(match.group(1), ",".join(map(str, range(int(match.group(2)), int(match.group(3)))))), register_offset)
     register_offset = re_N_unicode_range.sub(lambda match: "(N={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)))))), register_offset)
     register_offset = re_N_to.sub(lambda match: "(N={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)))))), register_offset)
@@ -1118,8 +1120,25 @@ for module in root_dnode.children:
       svd_registers = etree.Element("registers")
       svd_peripheral.append(svd_registers)
 
+      visible_registers = []
+      for register in registers:
+        if len(filters) > 0 and register.name not in filters[x_module_name.upper()]:
+          continue
+        visible_registers.append(register)
+
+      # TODO: Here, maybe figure out how to unroll all the register instances.
+      # The subset of the registers that are kept by the alternative filter is the important subset.
+      """
+      The structure is:
+
+      alternatives
+        instances (new; derived from the offset expressions of the visible_registers; there are at least two dimensions (N and P))
+          clusters (parts)
+            registers
+      """
+
       input_clusters = summary.parts if summary and len(summary.parts) > 0 and len(summary.alternatives) == 0 else []
-      # TODO: add <cluster> nodes.
+      # Add <cluster> nodes.
       svd_clusters_by_register = {} # register -> [cluster]
       if input_clusters and len(input_clusters) >= 2: # this avoids creating clusters like "TWI0,TWI1,TWI2,TWI3" inside TWI2.
         input_clusters = complete_input_clusters(input_clusters, subcluster_offsets)
@@ -1149,19 +1168,9 @@ for module in root_dnode.children:
       common_loop_var, common_loop_indices = None, None
 
       #print("FILTERS", filters, file=sys.stderr)
-      for register in registers:
-          #print("FILTERS", filters.keys())
-          #if register.name == "TSF_CSR":
-          #  import pdb
-          #  pdb.set_trace()
-          if len(filters) > 0 and register.name not in filters[x_module_name.upper()]:
-            #info("Filtered out register {!r} because {!r}.{!r} is not supposed to be in this alternative.".format(register.name, module_name, register.name))
-            continue
-          assert len(register.meta) == 1
-          register_offset = register.meta[0]
-          assert(register_offset.startswith("Offset:"))
+      for register in visible_registers:
           try:
-              register_offset = parse_Offset(register_offset)
+              register_offset = parse_Offset(register)
               nN_match = re_n_range.search(register_offset)
               if nN_match:
                   before_part, loop_var, loop_indices, after_part = re_n_range.split(register_offset)
@@ -1173,6 +1182,7 @@ for module in root_dnode.children:
                       warning("{!r}: Inconsistent peripheral array (skipping the entire thing): ({!r}, {!r}) vs ({!r}, {!r})".format(register.name, loop_var, loop_indices, common_loop_var, common_loop_indices))
                       continue
               else:
+                  loop_var = "N"
                   loop_indices = [0]
               # Note: can contain N, n
               spec = register_offset
