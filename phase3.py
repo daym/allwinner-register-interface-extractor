@@ -874,6 +874,8 @@ def parse_Summary(container, module):
     parts[part] = []
     offsets = []
     for row in summary.rows:
+      #if part == "CSI1" and len(row) > 0 and row[0].startswith("CSI1_") and row[0].find("_C0") == -1:
+      #    assert False, row
       if len(row) > 0 and row[0].find(" 0x") != -1:
           a, b = row[0].split("0x", 1)
           row.insert(0, a)
@@ -976,11 +978,30 @@ for module in root_dnode.children:
 
   registers_not_in_any_peripheral = set()
   rspecs = []
+  need_CSI1_fixup = False
   for dnode in container.children:
-    rspec = dnode.name, dnode.header, dnode.rows
+    if dnode.name == "CSI1_F2_BUFB_REG": # (R40) representant
+      # TODO: ensure that the filters already have the correct name
+      need_CSI1_fixup = True
+      rspec = "CSI1_C0_F2_BUFB_REG", dnode.header, dnode.rows
+    else:
+      rspec = dnode.name, dnode.header, dnode.rows
     if len(filters) > 0: # is there any filtering going on? # only then do we care about the outcome of the filtering.
       registers_not_in_any_peripheral.add(dnode.name)
     rspecs.append(rspec)
+  if need_CSI1_fixup: # R40 sometimes has the (slightly) wrong names in the summary for CSI1.
+    v0 = filters["CSI1"]
+    replacements = []
+    for item in v0:
+      if len([n for n,h,r in rspecs if n == item]) == 0:
+        if len([n for n,h,r in rspecs if n == item.replace("CSI1_", "CSI1_C0_")]) > 0:
+          #if item.find("BUF_CTL_REG") != -1:
+          #  import pdb
+          #  pdb.set_trace()
+          replacements.append((item, item.replace("CSI1_", "CSI1_C0_")))
+    for a,b in replacements:
+      v0.remove(a)
+      v0.add(b)
   registers = [x for x in [parse_Register(rspec) for rspec in rspecs] if x]
 
   def all_filters_equal(filters):
