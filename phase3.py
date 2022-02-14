@@ -754,7 +754,8 @@ def parse_Register(rspec, field_word_count = 1):
             if field_word_count < 6:
                 return parse_Register(rspec, field_word_count = field_word_count + 1)
             else:
-                warning("{!r}: Field name could not be determined: {!r} (tried: {!r})".format(register_name, register_field, name))
+                if description.strip() != "/":
+                  warning("{!r}: Field name could not be determined: {!r} (tried: {!r})".format(register_name, register_field, name))
                 #if register_name.strip().startswith("BUS_SOFT_RST_REG3"):
                 #  import pdb
                 #  pdb.set_trace()
