@@ -352,6 +352,24 @@ def split_at_is(s):
        else:
          return "", s
 
+def create_cluster(name, addressOffset):
+    cluster = etree.Element("cluster")
+    name_node = etree.Element("name")
+    name_node.text = name
+    cluster.append(name_node)
+    addressOffset_node = etree.Element("addressOffset") # it is mandatory
+    addressOffset_node.text = "0x{:x}".format(addressOffset)
+    cluster.append(addressOffset_node)
+    return cluster
+
+def create_register_reference(name, addressOffset, ref_name):
+  result = etree.Element("register")
+  result.attrib["derivedFrom"] = ref_name
+  register_name = name
+  result.append(text_element("name", name))
+  result.append(text_element("addressOffset", "0x{:X}".format(addressOffset)))
+  return result
+
 def create_register(table_definition, name, addressOffset, register_description=None):
   result = etree.Element("register")
   register_name = name
@@ -933,7 +951,35 @@ def parse_Summary(container, module):
     if len(offsets) != len(set(offsets)): # offsets are not unique. That means the entire thing is probably a list of ALTERNATIVES, not parts.
       return Summary(parts = [], alternatives = parts), container
     else:
+      if "ALWAYS" in parts and len(parts["ALWAYS"]) == 0:
+        del parts["ALWAYS"]
+
       return Summary(parts = parts, alternatives = []), container
+
+def complete_input_clusters(input_clusters, subcluster_offsets):
+  # If there is an offset specified in SUBCLUSTER_OFFSETS for a INPUT_CLUSTER we do not have,
+  # Then make the INPUT_CLUSTER more useful by extending its entry by the instances
+  # whose names start with the respective cluster name.
+  additions = []
+  removals = set()
+  for a,_ in subcluster_offsets:
+    a = a.strip().upper()
+    print("SUBA", a, input_clusters.keys(), file=sys.stderr)
+    if a not in input_clusters:
+      q = a
+      while len(q) > 0 and q[-1] in "0123456789":
+        q = q[:-1]
+      if q != a:
+        assert q in input_clusters, (q, a, input_clusters.keys())
+        r = input_clusters[q]
+        additions.append((a, r))
+        removals.add(q)
+  for r in removals:
+    del input_clusters[r]
+  for a, b in additions:
+    input_clusters[a] = b
+  print("SUBA2", input_clusters.keys(), file=sys.stderr)
+  return input_clusters
 
 for module in root_dnode.children:
   prefix, suffix = module.header
@@ -945,6 +991,7 @@ for module in root_dnode.children:
   #print("PERIPH", peripherals)
   container = module
   filters = {}
+  summary = None
   if len(container.children) == 1 and container.children[0].header[1] in [['Register_Name', 'Offset', 'Description'], ['Register_Name', 'Offset', 'Register_name'], ['Register_Name', 'Offset', 'Register_Description']]:  # That's a summary.
     container = container.children[0]
     summary, container = parse_Summary(container, module)
@@ -1069,6 +1116,32 @@ for module in root_dnode.children:
       svd_registers = etree.Element("registers")
       svd_peripheral.append(svd_registers)
 
+      input_clusters = summary.parts if summary and len(summary.parts) > 0 and len(summary.alternatives) == 0 else []
+      # TODO: add <cluster> nodes.
+      svd_clusters_by_register = {} # register -> [cluster]
+      if input_clusters and len(input_clusters) >= 2: # this avoids creating clusters like "TWI0,TWI1,TWI2,TWI3" inside TWI2.
+        input_clusters = complete_input_clusters(input_clusters, subcluster_offsets)
+        for input_cluster_name, input_cluster_members in sorted(input_clusters.items()):
+          addressOffset = 0
+          for a,b in subcluster_offsets:
+            if a.strip().upper() == input_cluster_name.upper():
+              addressOffset = b
+              eval_env[input_cluster_name] = 0 # since we grouped it, don't offset twice!
+              # Make a more general env var (TSF1 -> TSF)
+              q = input_cluster_name
+              while len(q) > 0 and q[-1] in "0123456789":
+                q = q[:-1]
+              eval_env[q] = 0
+              break
+          svd_cluster = create_cluster(input_cluster_name, addressOffset)
+          for r, *_ in input_cluster_members:
+            r = r.strip()
+            if r not in svd_clusters_by_register:
+              svd_clusters_by_register[r] = []
+            svd_clusters_by_register[r].append(svd_cluster)
+          svd_registers.append(svd_cluster)
+        info("CLUSTERS: {!r}".format(input_clusters.keys()))
+
       #rspecs = container.children
 
       common_loop_var, common_loop_min, common_loop_max = None, None, None
@@ -1076,6 +1149,9 @@ for module in root_dnode.children:
       #print("FILTERS", filters, file=sys.stderr)
       for register in registers:
           #print("FILTERS", filters.keys())
+          #if register.name == "TSF_CSR":
+          #  import pdb
+          #  pdb.set_trace()
           if len(filters) > 0 and register.name not in filters[x_module_name.upper()]:
             #info("Filtered out register {!r} because {!r}.{!r} is not supposed to be in this alternative.".format(register.name, module_name, register.name))
             continue
@@ -1111,11 +1187,32 @@ for module in root_dnode.children:
               traceback.print_exc()
               continue
           svd_register = create_register(register, register.name, register_offset, register_description=None) # FIXME: description
-          svd_registers.append(svd_register)
+          #if register.name.strip().find("TSF") != -1:
+          #      import pdb
+          #      pdb.set_trace()
+          if svd_clusters_by_register.get(register.name):
+            svd_clusters = list(svd_clusters_by_register[register.name])
+            svd_cluster = svd_clusters[0]
+            svd_cluster.append(svd_register)
+            for svd_cluster in svd_clusters[1:]:
+              cluster_name = svd_cluster.find("name").text
+              # TODO: If we could specify the derivedFrom while including the cluster name, we could re-use the same register name.
+              svd_cluster.append(create_register_reference("{}_{}".format(cluster_name, register.name), register_offset, register.name))
+          else: # should not happen
+            svd_registers.append(svd_register)
           if register.name in registers_not_in_any_peripheral:
             registers_not_in_any_peripheral.remove(register.name)
           #if register.name + "_REG" in registers_not_in_any_peripheral: # R40... sigh
           #  registers_not_in_any_peripheral.remove(register.name + "_REG")
+      # Remove empty cluster
+      removals = set()
+      for node in svd_registers:
+        if node.tag == "cluster":
+          if len([a.find("name").text for a in node if a.tag not in ["name", "addressOffset"]]) == 0:
+            removals.add(node)
+      for r in removals:
+        warning("{!r}: Removing cluster {!r} since it's empty", module.rows, r.find("name").text)
+        svd_registers.remove(r)
 
   if len(registers_not_in_any_peripheral) > 0:
     warning("{!r}: Registers not used in any peripheral: {!r}".format(module.rows, sorted(list(registers_not_in_any_peripheral))))
