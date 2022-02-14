@@ -976,12 +976,18 @@ for module in root_dnode.children:
   assert not (len(container.children) == 1 and container.children[0].header[1] == ['Register_Name', 'Offset', 'Description']), module.rows
   assert suffix == ["Module_Name", "Base_Address"], module.header
   peripherals = [r for r in module.rows if r != []]
-  peripherals = [(module_name.strip(), module_baseAddress.replace("(for HDMI)", "")) for module_name, module_baseAddress in peripherals]
+  subcluster_offsets = [(module_name.strip()[:-len(" OFFSET")], eval(module_baseAddress, {})) for module_name, module_baseAddress in peripherals if module_name.strip().endswith(" OFFSET")]
+  peripherals = [(module_name.strip(), module_baseAddress.replace("(for HDMI)", "")) for module_name, module_baseAddress in peripherals if not module_name.strip().endswith(" OFFSET")]
+  # This can be used to introduce extra eval variables.
   d_peripherals = dict(peripherals)
+  eval_env = dict(subcluster_offsets)
+  eval_env["N"] = None
+  eval_env["n"] = None
+  eval_env["P"] = None
 
   module_name, module_baseAddress, *rest = peripherals[0]
   module_name = module_name.strip()
-  module_baseAddress = eval(module_baseAddress, {})
+  module_baseAddress = eval(module_baseAddress, eval_env)
 
   registers_not_in_any_peripheral = set()
   rspecs = []
@@ -1037,7 +1043,7 @@ for module in root_dnode.children:
     #  import pdb
     #  pdb.set_trace()
     try:
-      x_module_baseAddress = eval(x_module_baseAddress, {})
+      x_module_baseAddress = eval(x_module_baseAddress, eval_env)
     except (ValueError, SyntaxError, NameError):
       warning("FIXME IMPLEMENT {}".format(x_module_name))
       continue
@@ -1064,6 +1070,7 @@ for module in root_dnode.children:
           assert(register_offset.startswith("Offset:"))
           try:
               register_offset = parse_Offset(register_offset)
+              # TODO: "(N=0,1,2,3)"
               nN_match = re_nN_tilde.search(register_offset)
               if nN_match:
                   before_part, loop_var, loop_min, loop_max, after_part = re_nN_tilde.split(register_offset)
@@ -1081,7 +1088,7 @@ for module in root_dnode.children:
               # Note: can contain N, n
               spec = register_offset
               for N in range(loop_min, loop_max + 1):
-                  register_offset = eval(spec[len("Offset:"):].strip(), {"n": N, "N": N})
+                  register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
           except (SyntaxError, NameError, TypeError):
               warning("Offset is too complicated: {!r}".format(register_offset))
               import traceback
