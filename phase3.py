@@ -982,14 +982,26 @@ for module in root_dnode.children:
       registers_not_in_any_peripheral.add(dnode.name)
     rspecs.append(rspec)
   registers = [x for x in [parse_Register(rspec) for rspec in rspecs] if x]
-  if len(filters) == 1:
-    main_key = list(filters.keys())[0]
-    visible_registers = filters[main_key]
-    for register in registers:
-      if register.name not in visible_registers:
-        # Note: We could extend this here to find the summary OFFSET that has the same offset as the REGISTER.
-        info("{!r}: Automatically adding register {!r} even though it's not mentioned in the summary (note: this is working around a bug in the PDF)".format(peripherals, register.name))
-        visible_registers.add(register.name)
+
+  def all_filters_equal(filters):
+    items = list(filters.items())
+    if len(items) == 0:
+      return True
+    k0, v0 = items[0]
+    for k, v in items:
+      if v != v0:
+        return False
+    return True
+  if len(filters) == 1 or (len(filters) > 1 and all_filters_equal(filters)):
+    added = set()
+    for main_key, visible_registers in filters.items():
+      for register in registers:
+        if register.name not in visible_registers:
+          # Note: We could extend this here to find the summary OFFSET that has the same offset as the REGISTER.
+          added.add("{!r}: Automatically adding register {!r} even though it's not mentioned in the summary (note: this is working around a bug in the PDF)".format(peripherals, register.name))
+          visible_registers.add(register.name)
+    for msg in added:
+      info(msg)
 
   for x_module_name, x_module_baseAddress, *rest in peripherals:
     x_module_name = x_module_name.strip()
@@ -1056,7 +1068,7 @@ for module in root_dnode.children:
 
   if len(registers_not_in_any_peripheral) > 0:
     # TODO: if there is exactly one filter for all the peripherals, add these registers anyway
-    warning("{!r}: Registers not used in any peripheral: {!r}".format(module.rows, sorted(list(registers_not_in_any_peripheral))))
+    warning("{!r}: Registers not used in any peripheral: {!r}, filters = {!r}".format(module.rows, sorted(list(registers_not_in_any_peripheral)), filters))
 
 sys.stdout.flush()
 et.write(sys.stdout.buffer, pretty_print=True)
