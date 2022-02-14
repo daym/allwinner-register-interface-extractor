@@ -599,6 +599,11 @@ def field_name_from_description(description, field_word_count):
                if m: # FOO_BAR
                    matched_field_name_good = True
                    q = m.group(1)
+                   description = description.lstrip()
+                   if description.startswith(q):
+                     description = description[len(q):].lstrip()
+                     if description.startswith("."):
+                       description = description[len("."):].lstrip()
                    #q = q.replace("[", "_").replace("]", "_").replace(":", "_") # it's better if those pseudo fields don't come out--but maybe we want the extra info.
            if not matched_field_name_good:
                q = q.split(":")[0]
@@ -621,7 +626,7 @@ def field_name_from_description(description, field_word_count):
            r = words[field_word_count:]
            #connective_count = 0
            if len(r) > 0 and not matched_field_name_good and (r[0] in connectives or r[0].lower() in nouns) and field_word_count < 6:
-               return "", False, False
+               return "", False, False, description
            #    q.append(r[0])
            #    del r[0]
            #    if r == []:
@@ -650,7 +655,7 @@ def field_name_from_description(description, field_word_count):
               #info("{!r}: Guessed {!r} from {!r}".format(register_name, name, description))
         else:
             name = ""
-        return name, matched_field_name_good, guessed
+        return name, matched_field_name_good, guessed, description
 
 def parse_Register(rspec, field_word_count = 1):
     register_name, (register_meta, register_header), register_fields = rspec
@@ -724,7 +729,7 @@ def parse_Register(rspec, field_word_count = 1):
                 error("{!r}: Could not parse default value {!r}".format(register_name, default_part))
                 import traceback
         guessed = False
-        name, matched_field_name_good, guessed = field_name_from_description(description, field_word_count)
+        name, matched_field_name_good, guessed, description = field_name_from_description(description, field_word_count)
         if name.lower().strip() in ["reserved", "revered"] or name.lower().strip().startswith("reserved") or name.strip() == "/": # sic
             continue
         elif re_name.match(name):
