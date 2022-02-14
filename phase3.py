@@ -815,25 +815,20 @@ def parse_Register(rspec, field_word_count = 1):
 
     return Register(name = register_name, meta = register_meta, header = register_header, bits = bits, reset_value = default_value, reset_mask = default_mask)
 
-re_N_unicode_range = re.compile(r"N\s*=\s*([0-9])+–([0-9]+)")
-re_N_to = re.compile(r"N\s*=\s*([0-9]+) to ([0-9]+)")
-re_n_lt = re.compile(r"([0-9]+)<n<([0-9]+)")
-re_n_le_lt = re.compile(r"([0-9]+)≤n<([0-9]+)")
-re_nN_tilde = re.compile(r"[(]([NnP])=([0-9]+)~([0-9]+)[)]")
-re_N_to_expandeds = [re.compile(r"N\s*=(0),1,2,3,4,(5)"),
-                     re.compile(r"N\s*=(0),1,2,3,(4)"),
-                     re.compile(r"N\s*=(0),1,2,(3)"),
-                     re.compile(r"N\s*=(0),1,(2)"),
-                     re.compile(r"N\s*=(0),(1)")]
+re_N_unicode_range = re.compile(r"[(]N\s*=\s*([0-9])+–([0-9]+)[)]")
+re_N_to = re.compile(r"[(]N\s*=\s*([0-9]+) to ([0-9]+)[)]")
+re_n_lt = re.compile(r"[(]([0-9]+)<n<([0-9]+)[)]")
+re_n_le_lt = re.compile(r"[(]([0-9]+)≤n<([0-9]+)[)]")
+re_nN_tilde = re.compile(r"[(]([NnP])\s*=\s*([0-9]+)~([0-9]+)[)]")
+re_n_range = re.compile(r"[(]([NnP])\s*=\s*([0-9,]+)[)]")
 
 def parse_Offset(spec):
     register_offset = spec
-    register_offset = re_N_unicode_range.sub(lambda match: "N={}~{}".format(match.group(1), match.group(2)), register_offset)
-    register_offset = re_N_to.sub(lambda match: "N={}~{}".format(match.group(1), match.group(2)), register_offset)
-    register_offset = re_n_lt.sub(lambda match: "n={}~{}".format(int(match.group(1)) + 1, int(match.group(2)) - 1), register_offset)
-    register_offset = re_n_le_lt.sub(lambda match: "n={}~{}".format(int(match.group(1)), int(match.group(2)) - 1), register_offset)
-    for e in re_N_to_expandeds:     #(N=0,1,2)
-      register_offset = e.sub(lambda match: "N={}~{}".format(match.group(1), match.group(2)), register_offset)
+    register_offset = re_nN_tilde.sub(lambda match: "({}={})".format(match.group(1), ",".join(map(str, range(int(match.group(2)), int(match.group(3)))))), register_offset)
+    register_offset = re_N_unicode_range.sub(lambda match: "(N={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)))))), register_offset)
+    register_offset = re_N_to.sub(lambda match: "(N={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)))))), register_offset)
+    register_offset = re_n_lt.sub(lambda match: "(n={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)))))), register_offset)
+    register_offset = re_n_le_lt.sub(lambda match: "(n={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)))))), register_offset)
     return register_offset
 
 svd_peripherals = etree.Element("peripherals")
@@ -1151,7 +1146,7 @@ for module in root_dnode.children:
 
       #rspecs = container.children
 
-      common_loop_var, common_loop_min, common_loop_max = None, None, None
+      common_loop_var, common_loop_indices = None, None
 
       #print("FILTERS", filters, file=sys.stderr)
       for register in registers:
@@ -1167,23 +1162,21 @@ for module in root_dnode.children:
           assert(register_offset.startswith("Offset:"))
           try:
               register_offset = parse_Offset(register_offset)
-              nN_match = re_nN_tilde.search(register_offset)
+              nN_match = re_n_range.search(register_offset)
               if nN_match:
-                  before_part, loop_var, loop_min, loop_max, after_part = re_nN_tilde.split(register_offset)
-                  loop_min = int(loop_min)
-                  loop_max = int(loop_max)
+                  before_part, loop_var, loop_indices, after_part = re_n_range.split(register_offset)
+                  loop_indices = list(map(int, loop_indices.split(",")))
                   register_offset = before_part
-                  if (common_loop_var, common_loop_min, common_loop_max) == (None, None, None):
-                      common_loop_var, common_loop_min, common_loop_max = loop_var, loop_min, loop_max
-                  if (common_loop_var, common_loop_min, common_loop_max) != (loop_var, loop_min, loop_max):
-                      warning("{!r}: Inconsistent peripheral array (skipping the entire thing): ({!r}, {!r}, {!r}) vs ({!r}, {!r}, {!r})".format(register.name, loop_var, loop_min, loop_max, common_loop_var, common_loop_min, common_loop_max))
+                  if (common_loop_var, common_loop_indices) == (None, None):
+                      common_loop_var, common_loop_indices = loop_var, loop_indices
+                  if (common_loop_var, common_loop_indices) != (loop_var, loop_indices):
+                      warning("{!r}: Inconsistent peripheral array (skipping the entire thing): ({!r}, {!r}) vs ({!r}, {!r})".format(register.name, loop_var, loop_indices, common_loop_var, common_loop_indices))
                       continue
               else:
-                  loop_min = 0
-                  loop_max = 0
+                  loop_indices = [0]
               # Note: can contain N, n
               spec = register_offset
-              for N in range(loop_min, loop_max + 1):
+              for N in loop_indices:
                   eval_env["N"] = N
                   eval_env["n"] = N
                   register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
