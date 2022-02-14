@@ -826,6 +826,8 @@ def parse_Summary(container, module):
     module_prefixes = set([row[0].split("_", 1)[0] for row in module.rows if len(row) > 1 and row[0].find("_") != -1])
     # Special case for D1: For the " register list: " cases, infer the names of the peripherals they mean
     for row in summary.rows:
+      if len(row) > 0 and row[0].find(" _") != -1:
+        row[0] = row[0].replace(" _", "_") # R40
       if len(row) > 0 and row[0].strip().lower() == "analog domain register": # it's not bold--so it cannot be detected by extract.py
         row.insert(0, "#")
       if len(row) == 1 and row[0].strip().endswith(" register list:"):
