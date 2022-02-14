@@ -689,7 +689,7 @@ def field_name_from_description(description, field_word_count):
 def parse_Register(rspec, field_word_count = 1):
     register_name, (register_meta, register_header), register_fields = rspec
     if register_header[0:1] != ['Bit'] or "Default/Hex" not in register_header:
-        warning("{!r}: Unknown 'register' header {!r}, fields {!r}".format(register_name, register_header, register_fields))
+        # FIXME: warning("{!r}: Unknown 'register' header {!r}, fields {!r}".format(register_name, register_header, register_fields))
         return None
     bits = []
     default_value = 0
@@ -1050,6 +1050,44 @@ for module in root_dnode.children:
   eval_env["n"] = None
   eval_env["P"] = None
 
+  def infer_register_instance_structure(visible_registers):
+      offsets = {} # register name -> offset_spec
+      common_loop_var, common_loop_indices = "N", [0]
+      for register in visible_registers:
+          #if register.name == "LEDC_CTRL_REG":
+          #   import pdb
+          #   pdb.set_trace()
+          try:
+              register_offset = parse_Offset(register)
+              offsets[register.name] = register.meta[0]
+              nN_match = re_n_range.search(register_offset)
+              if nN_match:
+                  before_part, loop_var, loop_indices, after_part = re_n_range.split(register_offset)
+                  loop_indices = list(map(int, loop_indices.split(",")))
+                  register_offset = before_part
+                  offsets[register.name] = register_offset
+                  if (common_loop_var, common_loop_indices) == (None, None):
+                      common_loop_var, common_loop_indices = loop_var, loop_indices
+                  if (common_loop_var, common_loop_indices) != (loop_var, loop_indices):
+                      warning("{!r}: Inconsistent peripheral array (skipping the entire thing): ({!r}, {!r}) vs ({!r}, {!r})".format(register.name, loop_var, loop_indices, common_loop_var, common_loop_indices))
+                      return None, None, {}
+              else:
+                  loop_var = "N"
+                  loop_indices = [0]
+              # Note: can contain N, n, P
+              assert loop_var in ["N", "n"]
+              spec = register_offset
+              for N in loop_indices:
+                  eval_env["N"] = N
+                  eval_env["n"] = N
+                  register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
+          except (SyntaxError, NameError, TypeError):
+              warning("Offset is too complicated: {!r}".format(register_offset))
+              import traceback
+              traceback.print_exc()
+              return None, None, {}
+      return common_loop_var, common_loop_indices, offsets
+
   module_name, module_baseAddress, *rest = peripherals[0]
   module_name = module_name.strip()
   module_baseAddress = eval(module_baseAddress, eval_env)
@@ -1137,9 +1175,13 @@ for module in root_dnode.children:
             registers
       """
 
+      common_loop_var, common_loop_indices, simplified_offsets = infer_register_instance_structure(visible_registers)
+      if (common_loop_var, common_loop_indices) == (None, None):
+        continue
+
       input_clusters = summary.parts if summary and len(summary.parts) > 0 and len(summary.alternatives) == 0 else []
-      # Add <cluster> nodes.
       svd_clusters_by_register = {} # register -> [cluster]
+      # Add <cluster> nodes.
       if input_clusters and len(input_clusters) >= 2: # this avoids creating clusters like "TWI0,TWI1,TWI2,TWI3" inside TWI2.
         input_clusters = complete_input_clusters(input_clusters, subcluster_offsets)
         for input_cluster_name, input_cluster_members in sorted(input_clusters.items()):
@@ -1165,28 +1207,14 @@ for module in root_dnode.children:
 
       #rspecs = container.children
 
-      common_loop_var, common_loop_indices = None, None
-
       #print("FILTERS", filters, file=sys.stderr)
       for register in visible_registers:
           try:
-              register_offset = parse_Offset(register)
-              nN_match = re_n_range.search(register_offset)
-              if nN_match:
-                  before_part, loop_var, loop_indices, after_part = re_n_range.split(register_offset)
-                  loop_indices = list(map(int, loop_indices.split(",")))
-                  register_offset = before_part
-                  if (common_loop_var, common_loop_indices) == (None, None):
-                      common_loop_var, common_loop_indices = loop_var, loop_indices
-                  if (common_loop_var, common_loop_indices) != (loop_var, loop_indices):
-                      warning("{!r}: Inconsistent peripheral array (skipping the entire thing): ({!r}, {!r}) vs ({!r}, {!r})".format(register.name, loop_var, loop_indices, common_loop_var, common_loop_indices))
-                      continue
-              else:
-                  loop_var = "N"
-                  loop_indices = [0]
-              # Note: can contain N, n
-              spec = register_offset
-              for N in loop_indices:
+              if register.name not in simplified_offsets:
+                  warning("{!r}: Register {!r} has a too-complicated offset ({!r}). Skipping".format(module.rows, register.name, register.meta[0]))
+                  continue
+              spec = simplified_offsets[register.name]
+              for N in common_loop_indices:
                   eval_env["N"] = N
                   eval_env["n"] = N
                   register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
