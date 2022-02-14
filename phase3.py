@@ -978,7 +978,8 @@ for module in root_dnode.children:
   rspecs = []
   for dnode in container.children:
     rspec = dnode.name, dnode.header, dnode.rows
-    registers_not_in_any_peripheral.add(dnode.name)
+    if len(filters) > 0: # is there any filtering going on? # only then do we care about the outcome of the filtering.
+      registers_not_in_any_peripheral.add(dnode.name)
     rspecs.append(rspec)
   registers = [x for x in [parse_Register(rspec) for rspec in rspecs] if x]
   if len(filters) == 1:
