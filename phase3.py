@@ -675,6 +675,8 @@ def parse_Register(rspec, field_word_count = 1):
             s = register_field[-1]
             del register_field[-1]
             register_field[-1] = register_field[-1] + " " + s
+        if len([x for x in register_field if x]) == 0 or [x.strip() for x in register_field if x] == ["Bit"]:
+            continue
         if register_header == ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']:
             # FIXME: Provide access_method parameter and choose which ACCESS to use
             bitrange, access, access2, default_part, description = register_field
@@ -696,6 +698,8 @@ def parse_Register(rspec, field_word_count = 1):
               if max_bit == 15 and min_bit == 18: # reg HCCPARAMS in A64
                 max_bit, min_bit = min_bit, max_bit
               elif max_bit == 0 and min_bit > 10: # work around A64 bug
+                max_bit, min_bit = min_bit, max_bit
+              elif max_bit == 0 and min_bit == 1: # work around R40 bug
                 max_bit, min_bit = min_bit, max_bit
               else:
                 error("{!r}: Invalid field {!r}: Bitrange error".format(register_name, register_field))
