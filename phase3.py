@@ -980,6 +980,16 @@ for module in root_dnode.children:
     rspec = dnode.name, dnode.header, dnode.rows
     registers_not_in_any_peripheral.add(dnode.name)
     rspecs.append(rspec)
+  registers = [x for x in [parse_Register(rspec) for rspec in rspecs] if x]
+  if len(filters) == 1:
+    main_key = list(filters.keys())[0]
+    visible_registers = filters[main_key]
+    for register in registers:
+      if register.name not in visible_registers:
+        # Note: We could extend this here to find the summary OFFSET that has the same offset as the REGISTER.
+        info("{!r}: Automatically adding register {!r} even though it's not mentioned in the summary (note: this is working around a bug in the PDF)".format(peripherals, register.name))
+        visible_registers.add(register.name)
+
   for x_module_name, x_module_baseAddress, *rest in peripherals:
     x_module_name = x_module_name.strip()
     #if x_module_name == "CSI0":
@@ -1002,7 +1012,6 @@ for module in root_dnode.children:
 
       common_loop_var, common_loop_min, common_loop_max = None, None, None
 
-      registers = [x for x in [parse_Register(rspec) for rspec in rspecs] if x]
       #print("FILTERS", filters, file=sys.stderr)
       for register in registers:
           #print("FILTERS", filters.keys())
