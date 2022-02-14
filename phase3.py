@@ -1077,7 +1077,7 @@ for module in root_dnode.children:
       for register in registers:
           #print("FILTERS", filters.keys())
           if len(filters) > 0 and register.name not in filters[x_module_name.upper()]:
-            info("Filtered out register {!r} because {!r}.{!r} is not supposed to be in this alterantive.".format(register.name, module_name, register.name))
+            info("Filtered out register {!r} because {!r}.{!r} is not supposed to be in this alternative.".format(register.name, module_name, register.name))
             continue
           assert len(register.meta) == 1
           register_offset = register.meta[0]
