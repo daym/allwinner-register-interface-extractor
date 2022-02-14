@@ -820,6 +820,11 @@ re_N_to = re.compile(r"N\s*=\s*([0-9]+) to ([0-9]+)")
 re_n_lt = re.compile(r"([0-9]+)<n<([0-9]+)")
 re_n_le_lt = re.compile(r"([0-9]+)≤n<([0-9]+)")
 re_nN_tilde = re.compile(r"[(]([NnP])=([0-9]+)~([0-9]+)[)]")
+re_N_to_expandeds = [re.compile(r"N\s*=(0),1,2,3,4,(5)"),
+                     re.compile(r"N\s*=(0),1,2,3,(4)"),
+                     re.compile(r"N\s*=(0),1,2,(3)"),
+                     re.compile(r"N\s*=(0),1,(2)"),
+                     re.compile(r"N\s*=(0),(1)")]
 
 def parse_Offset(spec):
     register_offset = spec
@@ -827,6 +832,8 @@ def parse_Offset(spec):
     register_offset = re_N_to.sub(lambda match: "N={}~{}".format(match.group(1), match.group(2)), register_offset)
     register_offset = re_n_lt.sub(lambda match: "n={}~{}".format(int(match.group(1)) + 1, int(match.group(2)) - 1), register_offset)
     register_offset = re_n_le_lt.sub(lambda match: "n={}~{}".format(int(match.group(1)), int(match.group(2)) - 1), register_offset)
+    for e in re_N_to_expandeds:     #(N=0,1,2)
+      register_offset = e.sub(lambda match: "N={}~{}".format(match.group(1), match.group(2)), register_offset)
     return register_offset
 
 svd_peripherals = etree.Element("peripherals")
@@ -1160,7 +1167,6 @@ for module in root_dnode.children:
           assert(register_offset.startswith("Offset:"))
           try:
               register_offset = parse_Offset(register_offset)
-              # TODO: "(N=0,1,2,3)"
               nN_match = re_nN_tilde.search(register_offset)
               if nN_match:
                   before_part, loop_var, loop_min, loop_max, after_part = re_nN_tilde.split(register_offset)
@@ -1211,7 +1217,7 @@ for module in root_dnode.children:
           if len([a.find("name").text for a in node if a.tag not in ["name", "addressOffset"]]) == 0:
             removals.add(node)
       for r in removals:
-        warning("{!r}: Removing cluster {!r} since it's empty", module.rows, r.find("name").text)
+        warning("{!r}: Removing cluster {!r} since it's empty".format(module.rows, r.find("name").text))
         svd_registers.remove(r)
 
   if len(registers_not_in_any_peripheral) > 0:
