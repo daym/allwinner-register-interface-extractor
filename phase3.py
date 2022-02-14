@@ -582,7 +582,7 @@ re_name_read = re.compile(r"^[(]read[)]([0-9]*[A-Z_a-z]+|bist_en_a|vc_addr|vc_di
 re_name_write = re.compile(r"^[(]write[)]([0-9]*[A-Z_a-z]+|bist_en_a|vc_addr|vc_di|vc_clk|bist_done|vc_do|resume_sel|wide_burst_gate|flip_field|hyscale_en)$")
 
 # This also matches mixed-case field names like "Foo_Bar" (those happen sometimes)
-re_field_name_good = re.compile(r"^(([0-9]*[A-Z][A-Z0-9]*_[A-Z0-9./_-]+[a-zA-Z0-9./_-]*|[0-9]*[A-Z][A-Z0-9./_-]+|[0-9]*[A-Z][a-z][A-Za-z]*_[A-Z][A-Za-z_]+)(\[[0-9]+(:[0-9]+)?\])?)\s")
+re_field_name_good = re.compile(r"^(([0-9]*[A-Z][A-Z0-9]*_[A-Z0-9./_-]+[a-zA-Z0-9./_-]*|[0-9]*[A-Z][A-Z0-9./_-]+|[0-9]*[A-Z][a-z][A-Za-z]*_[A-Z][A-Za-z_]+)(\[[0-9]+(:[0-9]+)?\])?)[ .]")
 
 connectives = set(["a", "the", "has", "is", "are", "includes", "the", "to", "for", "largest", "between", "because", "how", "whether", "indicates", "specifies", "by", "when", "of", "contains", "initiate", "related", "if", "affected", "dedicated", "support", "and"])
 nouns = set(["threshold", "peak", "coefficient", "rms", "receive", "transmit", "gain", "smooth", "filter", "signal", "average", "attack", "sustain", "decay", "hold", "release", "size", "count", "enable", "mode", "time", "channel", "noise"])
@@ -600,10 +600,8 @@ def field_name_from_description(description, field_word_count):
                    matched_field_name_good = True
                    q = m.group(1)
                    description = description.lstrip()
-                   if description.startswith(q):
-                     description = description[len(q):].lstrip()
-                     if description.startswith("."):
-                       description = description[len("."):].lstrip()
+                   if description.startswith(q + ".") or description.startswith(q + " "):
+                     description = description[len(q) + 1:].lstrip()
                    #q = q.replace("[", "_").replace("]", "_").replace(":", "_") # it's better if those pseudo fields don't come out--but maybe we want the extra info.
            if not matched_field_name_good:
                q = q.split(":")[0]
