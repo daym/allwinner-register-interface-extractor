@@ -828,15 +828,21 @@ re_N_unicode_range = re.compile(r"[(]N\s*=\s*([0-9])+–([0-9]+)[)]")
 re_N_to = re.compile(r"[(]N\s*=\s*([0-9]+) to ([0-9]+)[)]")
 re_n_lt = re.compile(r"[(]([0-9]+)<n<([0-9]+)[)]")
 re_n_le_lt = re.compile(r"[(]([0-9]+)≤n<([0-9]+)[)]")
-re_nN_tilde = re.compile(r"[(]([NnP])\s*=\s*([0-9]+)~([0-9]+)[)]")
-re_n_range = re.compile(r"[(]([NnP])\s*=\s*([0-9,]+)[)]")
+re_nN_tilde = re.compile(r"[(]([NnPx])\s*=\s*([0-9]+)~([0-9]+)[)]")
+re_n_range = re.compile(r"[(]([NnPx])\s*=\s*([0-9, ]+)[)]")
+re_direct_range = re.compile(r"\s*(0x[0-9A-Fa-f]+)~(0x[0-9A-Fa-f]+)\s*$")
+re_spaced_hex = re.compile(r"(0x[0-9A-Fa-f ]+)")
+re_verbose_range = re.compile(r"[(]([NnPx]) from ([0-9]+) to ([0-9]+)[)]")
 
 def parse_Offset1(register_offset):
+    register_offset = re_spaced_hex.sub(lambda match: match.group(1).replace(" ", ""), register_offset)
+    register_offset = re_direct_range.sub(lambda match: "{} + N*4(N={})".format(match.group(1), ",".join(map(str, range(eval(match.group(1), {}), eval(match.group(2), {}) + 1, 4)))), register_offset)
     register_offset = re_nN_tilde.sub(lambda match: "({}={})".format(match.group(1), ",".join(map(str, range(int(match.group(2)), int(match.group(3)) + 1)))), register_offset)
     register_offset = re_N_unicode_range.sub(lambda match: "(N={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)) + 1)))), register_offset)
     register_offset = re_N_to.sub(lambda match: "(N={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)) + 1)))), register_offset)
     register_offset = re_n_lt.sub(lambda match: "(n={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)) + 1)))), register_offset)
     register_offset = re_n_le_lt.sub(lambda match: "(n={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)) + 1)))), register_offset)
+    register_offset = re_verbose_range.sub(lambda match: "({}={})".format(match.group(1), ",".join(map(str, range(int(match.group(2)), int(match.group(3)) + 1)))), register_offset) # description
     return register_offset
 
 def parse_Offset(register):
@@ -1036,11 +1042,14 @@ for module in root_dnode.children:
     svd_root.append(svd_cpu)
     continue
 
-  #print("PERIPH", peripherals)
+  #if repr(module.rows).find("HCI1") != -1:
+  #      import pdb
+  #      pdb.set_trace()
+
   container = module
   filters = {}
   summary = None
-  if len(container.children) == 1 and container.children[0].header[1] in [['Register_Name', 'Offset', 'Description'], ['Register_Name', 'Offset', 'Register_name'], ['Register_Name', 'Offset', 'Register_Description']]:  # That's a summary.
+  if len(container.children) == 1 and container.children[0].header[1][:3] in [['Register_Name', 'Offset', 'Description'], ['Register_Name', 'Offset', 'Register_name'], ['Register_Name', 'Offset', 'Register_Description']]:  # That's a summary.
     descriptions = {} # register name -> register description
     container = container.children[0]
     if len(container.header[1]) >= 3 and container.header[1][-1].endswith("Description"):
@@ -1094,7 +1103,7 @@ for module in root_dnode.children:
       #pprint(summary.alternatives, sys.stderr)
       #sys.exit(1)
     # Skip it for now. FIXME: Handle it.
-  assert not (len(container.children) == 1 and container.children[0].header[1] == ['Register_Name', 'Offset', 'Description']), module.rows
+  assert not (len(container.children) == 1 and container.children[0].header[1][:3] == ['Register_Name', 'Offset', 'Description']), module.rows
   assert suffix == ["Module_Name", "Base_Address"], module.header
   peripherals = [r for r in module.rows if r != []]
   subcluster_offsets = [(module_name.strip()[:-len(" OFFSET")], eval(module_baseAddress, {})) for module_name, module_baseAddress in peripherals if module_name.strip().endswith(" OFFSET")]
@@ -1102,9 +1111,6 @@ for module in root_dnode.children:
   # This can be used to introduce extra eval variables.
   d_peripherals = dict(peripherals)
   eval_env = dict(subcluster_offsets)
-  eval_env["N"] = None
-  eval_env["n"] = None
-  eval_env["P"] = None
 
   def infer_register_instance_structure(visible_registers, x_module_name):
       offsets = {} # register name -> offset_spec
@@ -1122,11 +1128,20 @@ for module in root_dnode.children:
               nN_match = re_n_range.search(spec)
               if nN_match:
                   before_part, loop_var, loop_indices, after_part = re_n_range.split(spec)
+              elif description := descriptions.get(register.name):
+                  before_part = spec
+                  print("DESC", description, file=sys.stderr)
+                  description = parse_Offset1(description)
+                  print("DESC1", description, file=sys.stderr)
+                  nN_match = re_n_range.search(description)
+                  if nN_match:
+                    _, loop_var, loop_indices, _ = re_n_range.split(description)
+              if nN_match:
                   loop_indices = list(map(int, loop_indices.split(",")))
                   spec = before_part
                   offsets[register.name] = spec
                   key = tuple(tuple([loop_var, tuple(loop_indices)]))
-                  assert loop_var in ["N", "n"]
+                  assert loop_var in ["N", "n", "x"]
                   if key not in common_vars_registers:
                       common_vars_registers[key] = {}
                   assert register.name not in common_vars_registers[key]
@@ -1135,24 +1150,26 @@ for module in root_dnode.children:
                   for N in loop_indices:
                       eval_env["N"] = N
                       eval_env["n"] = N
+                      eval_env["x"] = N
                       register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
                       common_vars_registers[key][register.name].append(register_offset)
               else:
-                  offsets[register.name] = spec # not sure
                   key = None
                   assert register.name not in common_vars_registers[key]
-                  if "N" in eval_env:
-                      del eval_env["N"]
-                  if "n" in eval_env:
-                      del eval_env["n"]
+                  # Remove all math variables
+                  while len([x for x in eval_env.keys() if len(x) == 1]) > 0:
+                    eval_env.pop([x for x in eval_env.keys() if len(x) == 1][0], 0)
+                  # TODO: It should be possible to support arrays somehow. Those definitely can have a + N * b or something--which should NOT be shrunk
                   register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
+                  offsets[register.name] = spec # not sure # do this only after the eval succeeded
                   common_vars_registers[key][register.name] = []
                   common_vars_registers[key][register.name].append(register_offset)
           except (SyntaxError, NameError, TypeError):
               warning("Offset is too complicated: {!r}".format(spec))
               import traceback
               traceback.print_exc()
-              return {}, {}
+              raise
+              #return {}, offsets
       if len(common_vars_registers) > 1:
           for common_vars, registers in common_vars_registers.items():
               info("{!r}: Register block: {!r}: {!r}".format(x_module_name, common_vars, registers))
@@ -1189,6 +1206,8 @@ for module in root_dnode.children:
       v0.remove(a)
       v0.add(b)
   registers = [x for x in [parse_Register(rspec) for rspec in rspecs] if x]
+  if len(registers) == 0:
+    error("{!r}: No registers found.".format(module_name))
 
   def all_filters_equal(filters):
     items = list(filters.items())
@@ -1232,7 +1251,7 @@ for module in root_dnode.children:
 
       visible_registers = {}
       for register in registers:
-        if len(filters) == 0 or register.name in filters[x_module_name.upper()]: # Note: If you get KeyError here, it's very possible that a set of alternatives was misdetected as a set of parts.
+        if len(filters) == 0 or register.name in filters[x_module_name.upper()]:
           assert register.name not in visible_registers
           visible_registers[register.name] = register
 
@@ -1247,8 +1266,7 @@ for module in root_dnode.children:
             registers
       """
 
-      # TODO: Do that for each instance, somehow, instead.
-      common_vars_registers, simplified_offsets = infer_register_instance_structure(visible_registers.values(), x_module_name)
+      # TODO: Do that for each cluster, somehow, instead.
       # ^ common_vars_registers: {[common var]: {register name: [register offset]}}
       #if (common_loop_var, common_loop_indices) == (None, None):
       #  continue
@@ -1257,6 +1275,7 @@ for module in root_dnode.children:
       svd_clusters_by_register = {} # register -> [cluster]; if register shows in multiple clusters, that means there are two modules of it, and it shows once for each of those modules. This direction is useful in order to easily derive one register from the other. Otherwise, it's quite annoying.
       #svd_clusters = [] # [(svd_cluster, registers)]
       # Add <cluster> nodes.
+      registers_not_in_any_cluster = set(visible_registers.keys())
       if input_clusters and len(input_clusters) >= 2: # this avoids creating clusters like "TWI0,TWI1,TWI2,TWI3" inside TWI2.
         input_clusters = complete_input_clusters(input_clusters, subcluster_offsets)
         for input_cluster_name, input_cluster_members in sorted(input_clusters.items()):
@@ -1273,53 +1292,63 @@ for module in root_dnode.children:
               addressOffset = b
               break
           svd_cluster = create_cluster(input_cluster_name, addressOffset)
-          for r, *_ in input_cluster_members:
-            r = r.strip()
-            if r not in svd_clusters_by_register:
-              svd_clusters_by_register[r] = []
-            svd_clusters_by_register[r].append(svd_cluster)
-          #svd_clusters.append((svd_cluster, ))
-          svd_registers.append(svd_cluster)
-        info("CLUSTERS: {!r}".format(input_clusters.keys()))
+          svd_registers.append(svd_cluster) # FIXME: dupe?
 
-      #rspecs = container.children
+          input_cluster_member_keys = set([x[0].strip() for x in input_cluster_members])
+          cluster_visible_registers = [v for k, v in visible_registers.items() if k in input_cluster_member_keys]
+          common_vars_registers, simplified_offsets = infer_register_instance_structure(cluster_visible_registers, x_module_name)
 
-      #print("FILTERS", filters, file=sys.stderr)
-      for register in visible_registers.values():
-          try:
+          # TODO: visible_registers -= cluster_visible_registers; or at least mark used
+          for register in cluster_visible_registers:
               if register.name not in simplified_offsets:
                   warning("{!r}: Register {!r} has a too-complicated offset ({!r}). Skipping".format(module.rows, register.name, register.meta[0]))
                   continue
               spec = simplified_offsets[register.name]
-              register_offset = 42
-              # FIXME: Enable:
-              #for N in common_loop_indices: # FIXME: common_vars_registers
-              #    eval_env["N"] = N
-              #    eval_env["n"] = N
-              #    register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
+              try:
+                register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
+                # FIXME: Enable:
+                #for N in common_loop_indices: # FIXME: common_vars_registers
+                #    eval_env["N"] = N
+                #    eval_env["n"] = N
+                #    register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
+              except (SyntaxError, NameError, TypeError):
+                warning("Offset is too complicated: {!r}".format(spec))
+                import traceback
+                traceback.print_exc()
+                continue
+              svd_register = create_register(register, register.name, register_offset, register_description=descriptions.get(register.name))
+              # TODO: svd_cluster.append(create_register_reference("{}_{}".format(cluster_name, register.name), register_offset, register.name))
+              svd_cluster.append(svd_register)
+              if register.name in registers_not_in_any_peripheral:
+                registers_not_in_any_peripheral.remove(register.name)
+              if register.name in registers_not_in_any_cluster:
+                registers_not_in_any_cluster.remove(register.name)
+      # Remaining globals
+      n_registers_not_in_any_cluster = set(registers_not_in_any_cluster)
+      global_registers = []
+      for rname in registers_not_in_any_cluster:
+        register = visible_registers.get(rname)
+        if register:
+          try:
+            spec = parse_Offset(register)
+            while len([x for x in eval_env.keys() if len(x) == 1]) > 0:
+              del eval_env[[x for x in eval_env.keys() if len(x) == 1][0]]
+            register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
           except (SyntaxError, NameError, TypeError):
-              warning("Offset is too complicated: {!r}".format(spec))
-              import traceback
-              traceback.print_exc()
-              continue
+                warning("Offset is too complicated: {!r}".format(spec))
+                import traceback
+                traceback.print_exc()
+                continue
+          global_registers.append((register_offset, register))
+
+      for register_offset, register in sorted(global_registers):
           svd_register = create_register(register, register.name, register_offset, register_description=descriptions.get(register.name))
-          #if register.name.strip().find("TSF") != -1:
-          #      import pdb
-          #      pdb.set_trace()
-          if svd_clusters_by_register.get(register.name):
-            svd_clusters = list(svd_clusters_by_register[register.name])
-            svd_cluster = svd_clusters[0]
-            svd_cluster.append(svd_register)
-            for svd_cluster in svd_clusters[1:]:
-              cluster_name = svd_cluster.find("name").text
-              # TODO: If we could specify the derivedFrom while including the cluster name, we could re-use the same register name.
-              svd_cluster.append(create_register_reference("{}_{}".format(cluster_name, register.name), register_offset, register.name))
-          else: # The register is not categorized in any cluster
-            svd_registers.append(svd_register)
-          if register.name in registers_not_in_any_peripheral:
-            registers_not_in_any_peripheral.remove(register.name)
-          #if register.name + "_REG" in registers_not_in_any_peripheral: # R40... sigh
-          #  registers_not_in_any_peripheral.remove(register.name + "_REG")
+          svd_registers.append(svd_register)
+          n_registers_not_in_any_cluster.remove(register.name)
+
+      registers_not_in_any_cluster = n_registers_not_in_any_cluster
+      #FIXME: assert len(registers_not_in_any_cluster) == 0, registers_not_in_any_cluster
+
       # Remove empty clusters
       removals = set()
       for node in svd_registers:
