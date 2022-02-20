@@ -122,15 +122,24 @@ def clean_table(module, header, body, name):
       warning("Table formatting in PDF is unknown: header={!r}, row={!r}".format(header, row))
   return module, header, body
 
-def unroll_instances(module):
-  _, header, body = module
+def unroll_Module(module):
+  header = module.header
+  body = module.rows
   prefix, header = header
   assert header == ["Module_Name", "Base_Address"], header
-  #print("BODY", body, file=sys.stderr)
+  base = None
+  if len([1 for Module_Name, Base_Address in body if Module_Name.strip().endswith(" OFFSET")]) == len(body) - 1:
+      for Module_Name, Base_Address in body:
+        if not Module_Name.strip().endswith(" OFFSET"):
+            base = eval(Base_Address, {})
+            break
   for Module_Name, Base_Address in body:
     Module_Name = Module_Name.strip()
     Base_Address = Base_Address.replace("(for HDMI)", "").strip()
     Base_Address = eval(Base_Address.strip(), {})
+    if Module_Name.endswith(" OFFSET"):
+      Base_Address = base + Base_Address
+      Module_Name = Module_Name.replace(" OFFSET", "").strip()
     yield Module_Name, Base_Address
   #assert len(body) == 1, (header, body)
   # AssertionError: (['Module_Name', 'Base_Address'], [['I2S/PCM0 ', '0x02032000 '], ['I2S/PCM1 ', '0x02033000 '], ['I2S/PCM2 ', '0x02034000   ', ' ']])
@@ -858,7 +867,7 @@ class Summary(NamedTuple):
     parts: List  # FIXME: Dict
     alternatives: List # FIXME: Dict
 
-def register_summary_instances_guess(offsetspec, part):
+def register_summary_instances_guess(offsetspec, part, module):
     spec = parse_Offset1(offsetspec)
     nN_match = re_n_range.search(spec)
     if nN_match:
@@ -869,8 +878,16 @@ def register_summary_instances_guess(offsetspec, part):
             yield offset
     else:
         if offsetspec.find("Reserved") == -1:
-            # Guess
-            yield eval(spec, {"N": 0, part: 0})
+            # Guess; TODO: Check suffix on description ("(x:1~7)") instead.
+            eval_env = {"N": 0, "n": 0, part: 0}
+            for module_name, module_baseAddress in unroll_Module(module):
+                eval_env[module_name] = module_baseAddress
+                eval_env[module_name.rstrip("0")] = module_baseAddress
+            if offsetspec.find("8*x") == -1: # FIXME remove
+              try:
+                yield eval(spec, eval_env)
+              except Exception as e:
+                raise
 
 re_a_slash_b = re.compile(r"^([A-Za-z]*)([0-9]+)/([0-9]+)$")
 def parse_Summary(container, module):
@@ -923,6 +940,7 @@ def parse_Summary(container, module):
       else:
         nrows.append(["{}{}".format(prefix, row[0])] + row[1:])
         prefix = ""
+    assert prefix == "", "no leftover"
     summary.rows[:] = nrows
     #print("MODULE", module.rows, file=sys.stderr)
     #print("SUM", summary.rows, file=sys.stderr)
@@ -938,8 +956,15 @@ def parse_Summary(container, module):
       #    assert False, row
       if len(row) > 0 and row[0].find(" 0x") != -1:
           a, b = row[0].split("0x", 1)
+          b = "0x{}".format(b)
           row.insert(0, a)
           row[1] = b
+      if len(row) > 1 and row[1].find("  ") != -1 and len(row[1]) > 10: # and row[1].strip().endswith(" Register"): # column 1 shouldn't have the description, but does (bug in PDF)
+          a, b = row[1].split("  ")
+          row[1] = a
+          if len(row) < 3:
+            row.append("")
+          row[2] = "{}{}".format(b, row[2])
       while len(row) > 3:
           a = row[-1]
           del row[-1]
@@ -951,12 +976,12 @@ def parse_Summary(container, module):
       elif len(row) == 2:
           name, offsetspec = row
           description = name
-          for offset in register_summary_instances_guess(offsetspec, part):
+          for offset in register_summary_instances_guess(offsetspec, part, module):
             offsets.append(offset)
           parts[part].append(tuple(row))
       elif len(row) == 3:
           name, offsetspec, description = row
-          for offset in register_summary_instances_guess(offsetspec, part):
+          for offset in register_summary_instances_guess(offsetspec, part, module):
             offsets.append(offset)
           parts[part].append(tuple(row))
       else:
@@ -987,7 +1012,7 @@ def complete_input_clusters(input_clusters, subcluster_offsets):
   removals = set()
   for a,_ in subcluster_offsets:
     a = a.strip().upper()
-    print("SUBA", a, input_clusters.keys(), file=sys.stderr)
+    #print("SUBA", a, input_clusters.keys(), file=sys.stderr)
     if a not in input_clusters:
       q = a
       while len(q) > 0 and q[-1] in "0123456789":
@@ -1001,7 +1026,7 @@ def complete_input_clusters(input_clusters, subcluster_offsets):
     del input_clusters[r]
   for a, b in additions:
     input_clusters[a] = b
-  print("SUBA2", input_clusters.keys(), file=sys.stderr)
+  #print("SUBA2", input_clusters.keys(), file=sys.stderr)
   return input_clusters
 
 for module in root_dnode.children:
@@ -1235,10 +1260,6 @@ for module in root_dnode.children:
       if input_clusters and len(input_clusters) >= 2: # this avoids creating clusters like "TWI0,TWI1,TWI2,TWI3" inside TWI2.
         input_clusters = complete_input_clusters(input_clusters, subcluster_offsets)
         for input_cluster_name, input_cluster_members in sorted(input_clusters.items()):
-          if input_cluster_name == "TVE_TOP":
-            print("MEMBERS", input_cluster_members, file=sys.stderr)
-            import pdb
-            pdb.set_trace()
           eval_env[input_cluster_name] = 0 # since we grouped it, don't offset twice!
           # Make a more general env var (TSF1 -> TSF)
           q = input_cluster_name
