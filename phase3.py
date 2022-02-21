@@ -1069,11 +1069,11 @@ for module in root_dnode.children:
         keys = [k.strip() for k in keys.split(",")]
         if len([key for key in keys if key.strip() == "TVD"]) > 0:
           keys.remove("TVD")
-          keys.append("TVD0")
-          keys.append("TVD1")
-          keys.append("TVD2")
-          keys.append("TVD3")
+          for m in module_names:
+            if m.startswith("TVD") and not m.startswith("TVD_"):
+              keys.append(m)
         if len([key for key in keys if key.strip() == "UART"]) > 0:
+          assert False
           keys.remove("UART")
           keys.append("UART0")
           keys.append("UART1")
@@ -1085,10 +1085,11 @@ for module in root_dnode.children:
           keys.append("UART7")
           keys.append("UART8")
           keys.append("UART9")
-        if len([key for key in keys if key.strip() == "CSI"]) > 0:
-          keys.remove("CSI")
-          keys.append("CSI1")
-          keys.append("CSI0")
+        #if len([key for key in keys if key.strip() == "CSI"]) > 0:
+        #  assert False
+        #  keys.remove("CSI")
+        #  keys.append("CSI1")
+        #  keys.append("CSI0")
         if len([key for key in keys if key.strip() == "TVE"]) > 0: # FIXME check that we have a module like that.
           keys.remove("TVE")
           for m in module_names:
