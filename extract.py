@@ -138,7 +138,8 @@ class State(object):
   def start_table(self, rname):
       #print("RNAME", rname, file=sys.stderr)
       orig_rname = rname
-      if (self.prev_table_name == rname or rname in self.all_table_names) and rname != "Module List" and rname != "Register List" and not rname.startswith("TCON_"): # same-named things? Probably a mistake in the original PDF. Make sure we have both.
+      # TODO: The TCON_ (R40) and SPI_ (D1) are legitimately there multiple times. What to do with those?
+      if (self.prev_table_name == rname or rname in self.all_table_names) and rname != "Module List" and rname != "Register List" and not rname.startswith("TCON_") and not rname.startswith("SPI_"): # same-named things? Probably a mistake in the original PDF. Make sure we have both.
         error("Table {!r} (offset: {!r}) is started again, even though we already saw the contents entirely.".format(rname, self.offset))
         sys.exit(1)
         rname = rname + "Q"
