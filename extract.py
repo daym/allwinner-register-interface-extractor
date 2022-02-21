@@ -129,6 +129,10 @@ class State(object):
         rname = "TSG_CTLR"
     elif h4 == "Crypt Enable Register" and rname == "CRY_CONFIG_REG" and self.offset == "0x218": # A64
         rname = "CRY_ENABLE_REG"
+    elif h4 == "PWM Control Register" and rname == "PWM_CTR_REG" and self.offset == "0x0060+N*0x20(N= 0~7)": # R40
+        rname = "PWM_CONT_REG" # not counter
+    elif h4 == "System Internal 32K Clock Auto Calibration Register" and rname == "INTOSC_CLK_AUTO_CALI_REG" and self.offset == "0x0314": # R40
+        rname = "INTOSC_32K_CLK_AUTO_CALI_REG"
     return rname
 
   def start_table(self, rname):
