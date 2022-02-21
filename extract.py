@@ -127,12 +127,14 @@ class State(object):
         rname = "TSC_OUTMUXR"
     elif rname == "TSC_TSFMUXR" and self.offset == "TSG+0x00": # h4 wrong; A64
         rname = "TSG_CTLR"
+    elif h4 == "Crypt Enable Register" and rname == "CRY_CONFIG_REG" and self.offset == "0x218": # A64
+        rname = "CRY_ENABLE_REG"
     return rname
 
   def start_table(self, rname):
       #print("RNAME", rname, file=sys.stderr)
       orig_rname = rname
-      if (self.prev_table_name == rname or rname in self.all_table_names) and rname != "Module List" and rname != "Register List": # same-named things? Probably a mistake in the original PDF. Make sure we have both.
+      if (self.prev_table_name == rname or rname in self.all_table_names) and rname != "Module List" and rname != "Register List" and not rname.startswith("TCON_"): # same-named things? Probably a mistake in the original PDF. Make sure we have both.
         error("Table {!r} (offset: {!r}) is started again, even though we already saw the contents entirely.".format(rname, self.offset))
         sys.exit(1)
         rname = rname + "Q"
