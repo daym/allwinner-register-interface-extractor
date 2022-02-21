@@ -1050,10 +1050,6 @@ for module in root_dnode.children:
     svd_root.append(svd_cpu)
     continue
 
-  #if repr(module.rows).find("HCI1") != -1:
-  #      import pdb
-  #      pdb.set_trace()
-
   container = module
   filters = {}
   summary = None
@@ -1145,7 +1141,7 @@ for module in root_dnode.children:
                   nN_match = re_n_range.search(description)
                   if nN_match:
                     _, loop_var, loop_indices, _ = re_n_range.split(description)
-              if nN_match: # Note: for R40, this is never reached.
+              if nN_match: # FIXME: This is never reached.
                   warning("{!r}: range match".format(register.name))
                   loop_indices = list(map(int, loop_indices.split(",")))
                   spec = before_part
@@ -1286,29 +1282,9 @@ for module in root_dnode.children:
       #svd_clusters = [] # [(svd_cluster, registers)]
       # Add <cluster> nodes.
       registers_not_in_any_cluster = set(visible_registers.keys())
-      if input_clusters and len(input_clusters) >= 2: # this avoids creating clusters like "TWI0,TWI1,TWI2,TWI3" inside TWI2.
-        input_clusters = complete_input_clusters(input_clusters, subcluster_offsets)
-        for input_cluster_name, input_cluster_members in sorted(input_clusters.items()):
-          eval_env[input_cluster_name] = 0 # since we grouped it, don't offset twice!
-          # Make a more general env var (TSF1 -> TSF)
-          q = input_cluster_name
-          while len(q) > 0 and q[-1] in "0123456789":
-              q = q[:-1]
-          eval_env[q] = 0
-          addressOffset = 0
-          # Find addressOffset to use for this, if any
-          for a,b in subcluster_offsets:
-            if a.strip().upper() == input_cluster_name.upper():
-              addressOffset = b
-              break
-          svd_cluster = create_cluster(input_cluster_name, addressOffset)
-          svd_registers.append(svd_cluster) # FIXME: dupe?
-
-          input_cluster_member_keys = set([x[0].strip() for x in input_cluster_members])
-          cluster_visible_registers = [v for k, v in visible_registers.items() if k in input_cluster_member_keys]
+      def process_register_block(cluster_visible_registers, svd_cluster):
           common_vars_registers, simplified_offsets = infer_register_instance_structure(cluster_visible_registers, x_module_name)
 
-          # TODO: visible_registers -= cluster_visible_registers; or at least mark used
           for register in cluster_visible_registers:
               if register.name not in simplified_offsets:
                   warning("{!r}: Register {!r} has a too-complicated offset ({!r}). Skipping".format(module.rows, register.name, register.meta[0]))
@@ -1333,30 +1309,32 @@ for module in root_dnode.children:
                 registers_not_in_any_peripheral.remove(register.name)
               if register.name in registers_not_in_any_cluster:
                 registers_not_in_any_cluster.remove(register.name)
+
+      if input_clusters and len(input_clusters) >= 2: # this avoids creating clusters like "TWI0,TWI1,TWI2,TWI3" inside TWI2.
+        input_clusters = complete_input_clusters(input_clusters, subcluster_offsets)
+        for input_cluster_name, input_cluster_members in sorted(input_clusters.items()):
+          eval_env[input_cluster_name] = 0 # since we grouped it, don't offset twice!
+          # Make a more general env var (TSF1 -> TSF)
+          q = input_cluster_name
+          while len(q) > 0 and q[-1] in "0123456789":
+              q = q[:-1]
+          eval_env[q] = 0
+          addressOffset = 0
+          # Find addressOffset to use for this, if any
+          for a,b in subcluster_offsets:
+            if a.strip().upper() == input_cluster_name.upper():
+              addressOffset = b
+              break
+          svd_cluster = create_cluster(input_cluster_name, addressOffset)
+          svd_registers.append(svd_cluster) # FIXME: dupe?
+
+          input_cluster_member_keys = set([x[0].strip() for x in input_cluster_members])
+          cluster_visible_registers = [v for k, v in visible_registers.items() if k in input_cluster_member_keys]
+          process_register_block(cluster_visible_registers, svd_cluster)
       # Remaining globals
-      n_registers_not_in_any_cluster = set(registers_not_in_any_cluster)
-      global_registers = []
-      for rname in registers_not_in_any_cluster:
-        register = visible_registers.get(rname)
-        if register:
-          try:
-            spec = parse_Offset(register)
-            while len([x for x in eval_env.keys() if len(x) == 1]) > 0:
-              del eval_env[[x for x in eval_env.keys() if len(x) == 1][0]]
-            register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
-          except (SyntaxError, NameError, TypeError):
-                warning("{!r}: Offset is too complicated: {!r}".format(rname, spec))
-                import traceback
-                traceback.print_exc()
-                continue
-          global_registers.append((register_offset, register))
+      global_registers = [v for k, v in visible_registers.items() if k in registers_not_in_any_cluster]
+      process_register_block(global_registers, svd_registers)
 
-      for register_offset, register in sorted(global_registers):
-          svd_register = create_register(register, register.name, register_offset, register_description=descriptions.get(register.name))
-          svd_registers.append(svd_register)
-          n_registers_not_in_any_cluster.remove(register.name)
-
-      registers_not_in_any_cluster = n_registers_not_in_any_cluster
       #FIXME: assert len(registers_not_in_any_cluster) == 0, registers_not_in_any_cluster
 
       # Remove empty clusters
