@@ -1348,21 +1348,66 @@ for module in root_dnode.children:
               if register.name not in simplified_offsets:
                   warning("{!r}: Register {!r} has a too-complicated offset ({!r}). Skipping".format(module.rows, register.name, register.meta[0]))
                   continue
+              register_offsets = []
               spec = simplified_offsets[register.name]
+              increments = []
               try:
-                register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
+                increment = None
+                dim = None
+                rspec = register.name
+                lowest_register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
+                register_offsets.append(lowest_register_offset)
                 # FIXME: Enable:
-                #for N in common_loop_indices: # FIXME: common_vars_registers
-                #    eval_env["N"] = N
-                #    eval_env["n"] = N
-                #    register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
               except (SyntaxError, NameError, TypeError):
                 spec = parse_Offset(register)
                 warning("{!r}: Offset2 is too complicated: {!r}, {!r}".format(register.name, spec, register.meta))
-                import traceback
-                traceback.print_exc()
-                continue
-              svd_register = create_register(register, register.name, register_offset, register_description=descriptions.get(register.name))
+                nN_match = re_n_range.search(spec)
+                register_offsets = []
+                if nN_match:
+                  spec, loop_var, loop_indices, after_part = re_n_range.split(spec)
+                  loop_indices = list(map(int, loop_indices.split(",")))
+
+                  for N in loop_indices:
+                    eval_env["N"] = N
+                    eval_env["n"] = N
+                    register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
+                    register_offsets.append(register_offset)
+                  register_offsets = list(sorted(register_offsets))
+                  lowest_register_offset = register_offsets[0]
+                  increments = calculate_increments(register_offsets)
+                  if len(set(increments)) == 1 and list(loop_indices) == list(range(len(loop_indices))):
+                     increment = min(increments)
+                     array = True
+                     rspec = "{}[%s]".format(register.name)
+                  else:
+                     array = False
+                     if len(set(increments)) == 1:
+                         rspec = "{}_%s".format(register.name)
+                     else: # weird special case for ONE register in R40, TCON_CEU_COEF_MUL_REG: Gap in dimIndex
+                         assert len(set(increments)) > 1, register.name
+                         rspec = "{}_{}".format(register.name, loop_indices[0])
+                         primary_rspec = rspec
+                         svd_register = create_register(register, rspec, lowest_register_offset, register_description=descriptions.get(register.name))
+                         svd_cluster.append(svd_register)
+                         assert len(register_offsets) == len(loop_indices), register.name
+                         for register_offset, N in list(zip(register_offsets, loop_indices))[1:]:
+                             rspec = "{}_{}".format(register.name, N)
+                             svd_cluster.append(create_register_reference(rspec, register_offset, primary_rspec))
+                         if register.name in registers_not_in_any_peripheral:
+                             registers_not_in_any_peripheral.remove(register.name)
+                         if register.name in registers_not_in_any_cluster:
+                            registers_not_in_any_cluster.remove(register.name)
+                         continue
+                  dim = len(register_offsets)
+                else:
+                  warning("{!r}: Offset2 is too complicated: {!r}, {!r}".format(register.name, spec, register.meta))
+                  continue
+              svd_register = create_register(register, rspec, lowest_register_offset, register_description=descriptions.get(register.name))
+              if increment is not None:
+                  if not array:
+                      svd_register.append(create_element_and_text("dimIndex", ",".join(map(str, loop_indices))))
+                  svd_register.append(create_element_and_text("dimIncrement", str(increment)))
+                  svd_register.append(create_element_and_text("dim", str(len(loop_indices))))
               # TODO: svd_cluster.append(create_register_reference("{}_{}".format(cluster_name, register.name), register_offset, register.name))
               svd_cluster.append(svd_register)
               if register.name in registers_not_in_any_peripheral:
