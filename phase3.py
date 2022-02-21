@@ -1338,7 +1338,7 @@ for module in root_dnode.children:
               del eval_env[[x for x in eval_env.keys() if len(x) == 1][0]]
             register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
           except (SyntaxError, NameError, TypeError):
-                warning("Offset is too complicated: {!r}".format(spec))
+                warning("{!r}: Offset is too complicated: {!r}".format(rname, spec))
                 import traceback
                 traceback.print_exc()
                 continue
