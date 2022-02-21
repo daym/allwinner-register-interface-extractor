@@ -885,7 +885,7 @@ def register_summary_instances_guess(offsetspec, part, module):
     else:
         if offsetspec.find("Reserved") == -1:
             # Guess; TODO: Check suffix on description ("(x:1~7)") instead.
-            eval_env = {"N": 0, "n": 0, part: 0}
+            eval_env = {"N": 0, "n": 0, "P": 0, part: 0}
             for module_name, module_baseAddress in unroll_Module(module):
                 eval_env[module_name] = module_baseAddress
                 eval_env[module_name.rstrip("0")] = module_baseAddress
@@ -1049,6 +1049,7 @@ for module in root_dnode.children:
   container = module
   filters = {}
   summary = None
+  module_names = [module_name.strip() for module_name, *_ in module.rows]
   if len(container.children) == 1 and container.children[0].header[1][:3] in [['Register_Name', 'Offset', 'Description'], ['Register_Name', 'Offset', 'Register_name'], ['Register_Name', 'Offset', 'Register_Description']]:  # That's a summary.
     descriptions = {} # register name -> register description
     container = container.children[0]
@@ -1088,10 +1089,11 @@ for module in root_dnode.children:
           keys.remove("CSI")
           keys.append("CSI1")
           keys.append("CSI0")
-        if len([key for key in keys if key.strip() == "TVE"]) > 0:
+        if len([key for key in keys if key.strip() == "TVE"]) > 0: # FIXME check that we have a module like that.
           keys.remove("TVE")
-          keys.append("TVE0")
-          keys.append("TVE1")
+          for m in module_names:
+            if m.startswith("TVE") and not m.startswith("TVE_"):
+              keys.append(m)
         for key in keys:
           key = key.strip().upper()
           assert key
