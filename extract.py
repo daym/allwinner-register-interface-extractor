@@ -68,6 +68,7 @@ class State(object):
     self.in_register_name_multipart = False
     self.table_header_autobolder = False
     self.prev_table_name = None
+    self.all_table_names = set()
 
   def fixed_table_name(self, rname):
     h4 = "" if not self.h4 else self.h4.split("(")[0].strip()
@@ -120,16 +121,23 @@ class State(object):
         self.offset = "0x0014" # OOPS!
     elif h4 == "0x0028 THS Alarm Off Interrupt Status Register" and rname == "THS_ALARM_INTS" and self.offset == "0x0028": # D1
         rname = "THS_ALARM0_INTS"
+    elif h4 == "TSC Status Register" and rname == "TSC_TSFMUXR" and self.offset == "0x20":
+        pass
+    elif rname == "TSC_TSFMUXR" and self.offset == "0x28": # h4 wrong; A64
+        rname = "TSC_OUTMUXR"
+    elif rname == "TSC_TSFMUXR" and self.offset == "TSG+0x00": # h4 wrong; A64
+        rname = "TSG_CTLR"
     return rname
 
   def start_table(self, rname):
       #print("RNAME", rname, file=sys.stderr)
       orig_rname = rname
-      if self.prev_table_name == rname and rname != "Module List" and rname != "Register List": # same-named things? Probably a mistake in the original PDF. Make sure we have both.
+      if (self.prev_table_name == rname or rname in self.all_table_names) and rname != "Module List" and rname != "Register List": # same-named things? Probably a mistake in the original PDF. Make sure we have both.
         error("Table {!r} (offset: {!r}) is started again, even though we already saw the contents entirely.".format(rname, self.offset))
         sys.exit(1)
         rname = rname + "Q"
       self.finish_this_table()
+      self.all_table_names.add(rname)
       print()
       print("# START TABLE", rname)
       print("{} = Module_List, [".format(quote(rname)))
