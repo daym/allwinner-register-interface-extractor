@@ -895,6 +895,8 @@ def register_summary_instances_guess(offsetspec, part, module):
               except Exception as e:
                 raise
 
+re_ts_relative_offset_0 = re.compile(r"^(TS[A-Z]*)\s*[+]\s*(0x)?0+") # A64
+
 re_a_slash_b = re.compile(r"^([A-Za-z]*)([0-9]+)/([0-9]+)$")
 def parse_Summary(container, module):
     summary = container
@@ -935,6 +937,12 @@ def parse_Summary(container, module):
     nrows = []
     prefix = ""
     for row in summary.rows:
+      if len(row) > 1:
+        m = re_ts_relative_offset_0.match(row[1])
+        if m:
+          section = m.group(1)
+          if len(nrows) == 0 or ["#", section] not in nrows: # check for dupes
+            nrows.append(["#", section]) # for A64, which sometimes misses the section headers...
       if len(row) > 0 and row[0].endswith("_") and len(row[0]) > 15: # ['TCON_CLK_GATE_AND_HDMI_SRC_', 'MSGBOX_WR_INT_THRESHOLD_']: # word wrap
         prefix = row[0]
       elif len(row) > 0 and row[0].endswith("_ENTR") and len(row[0]) > 15:
@@ -1133,13 +1141,12 @@ for module in root_dnode.children:
                   before_part, loop_var, loop_indices, after_part = re_n_range.split(spec)
               elif description := descriptions.get(register.name):
                   before_part = spec
-                  print("DESC", description, file=sys.stderr)
                   description = parse_Offset1(description)
-                  print("DESC1", description, file=sys.stderr)
                   nN_match = re_n_range.search(description)
                   if nN_match:
                     _, loop_var, loop_indices, _ = re_n_range.split(description)
-              if nN_match:
+              if nN_match: # Note: for R40, this is never reached.
+                  warning("{!r}: range match".format(register.name))
                   loop_indices = list(map(int, loop_indices.split(",")))
                   spec = before_part
                   offsets[register.name] = spec
