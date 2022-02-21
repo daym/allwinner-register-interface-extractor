@@ -842,7 +842,7 @@ re_verbose_range = re.compile(r"[(]([NnPx]) from ([0-9]+) to ([0-9]+)[)]")
 
 def parse_Offset1(register_offset):
     register_offset = re_spaced_hex.sub(lambda match: match.group(1).replace(" ", ""), register_offset)
-    register_offset = re_direct_range.sub(lambda match: "{} + N*4(N={})".format(match.group(1), ",".join(map(str, range(eval(match.group(1), {}), eval(match.group(2), {}) + 1, 4)))), register_offset)
+    register_offset = re_direct_range.sub(lambda match: "{} + N*4(N={})".format(match.group(1), ",".join(map(str, range(0, (eval(match.group(2), {}) + 4 - eval(match.group(1), {})) // 4)))), register_offset)
     register_offset = re_nN_tilde.sub(lambda match: "({}={})".format(match.group(1), ",".join(map(str, range(int(match.group(2)), int(match.group(3)) + 1)))), register_offset)
     register_offset = re_N_unicode_range.sub(lambda match: "(N={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)) + 1)))), register_offset)
     register_offset = re_N_to.sub(lambda match: "(N={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)) + 1)))), register_offset)
@@ -895,10 +895,9 @@ def register_summary_instances_guess(offsetspec, part, module):
             for module_name, module_baseAddress in unroll_Module(module):
                 eval_env[module_name] = module_baseAddress
                 eval_env[module_name.rstrip("0")] = module_baseAddress
-            if offsetspec.find("8*x") == -1: # FIXME remove
-              try:
+            try:
                 yield eval(spec, eval_env)
-              except Exception as e:
+            except Exception as e:
                 raise
 
 re_ts_relative_offset_0 = re.compile(r"^(TS[A-Z]*)\s*[+]\s*(0x)?0+") # A64
@@ -1358,7 +1357,8 @@ for module in root_dnode.children:
                 #    eval_env["n"] = N
                 #    register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
               except (SyntaxError, NameError, TypeError):
-                warning("Offset is too complicated: {!r}".format(spec))
+                spec = parse_Offset(register)
+                warning("{!r}: Offset2 is too complicated: {!r}, {!r}".format(register.name, spec, register.meta))
                 import traceback
                 traceback.print_exc()
                 continue
