@@ -20,6 +20,11 @@ re_num_al_name = re.compile("^[0-9]*[A-Z]+$")
 
 #phase2_result__names
 
+def create_element_and_text(name, value):
+    result = etree.Element(name)
+    result.text = value
+    return result
+
 def clean_table(module, header, body, name):
   prefix = []
   suffix = []
@@ -1043,6 +1048,17 @@ def complete_input_clusters(input_clusters, subcluster_offsets):
   #print("SUBA2", input_clusters.keys(), file=sys.stderr)
   return input_clusters
 
+def calculate_increments(items):
+    reference = None
+    dimIncrements = []
+    for item in items:
+        if reference is None:
+             reference = item
+        dimIncrement = item - reference
+        reference = item
+        dimIncrements.append(dimIncrement)
+    return dimIncrements[1:]
+
 for module in root_dnode.children:
   prefix, suffix = module.header
   if module.name == "CPU_Architecture":
@@ -1284,8 +1300,49 @@ for module in root_dnode.children:
       registers_not_in_any_cluster = set(visible_registers.keys())
       def process_register_block(cluster_visible_registers, svd_cluster):
           common_vars_registers, simplified_offsets = infer_register_instance_structure(cluster_visible_registers, x_module_name)
+          doneregs = set()
+          for loop_spec, registers_and_offsets in common_vars_registers.items():
+              if loop_spec:
+                  loop_var, loop_indices = loop_spec
+                  lowest_offset = 2**32
+                  if len(registers_and_offsets) < 2: # not worth it
+                      continue
+                  common_increment = None
+                  for rname, offsets in registers_and_offsets.items():
+                      assert len(offsets) == len(loop_indices), rname
+                      if min(offsets) < lowest_offset:
+                        lowest_offset = min(offsets)
+                      increments = calculate_increments(offsets)
+                      assert len(set(increments)) == 1, rname
+                      increment = increments[0]
+                      if common_increment is None:
+                        common_increment = increment
+                  # Make svd_cluster under svd_cluster, with [%s] and dimIndex etcetc, stash all the registers_and_offsets in there
+                  if list(loop_indices) == list(range(len(loop_indices))): # 0..N-1
+                    cname = "_{}[%s]".format(loop_var)
+                    array = True
+                  else:
+                    cname = "_{}_%s".format(loop_var)
+                    array = False
+                  svd_loop_cluster = create_cluster(cname, lowest_offset)
+                  # TODO: assert root.find("dim") is None and root.find("dimIncrement") is None and root.find("dimIndex") is None, path_string(root)
+                  # TODO: Decide between "{}[%s]" withOUT dimIndex, or "{}_%s" WITH dimIndex
+                  if not array:
+                    svd_loop_cluster.append(create_element_and_text("dimIndex", ",".join(map(str, loop_indices))))
+                  svd_loop_cluster.append(create_element_and_text("dimIncrement", str(common_increment)))
+                  svd_loop_cluster.append(create_element_and_text("dim", str(len(loop_indices))))
+                  svd_cluster.append(svd_loop_cluster)
+                  for rname, offsets in registers_and_offsets.items():
+                      offsets = sorted(offsets)
+                      register_offset = offsets[0] - lowest_offset
+                      register = visible_registers[rname]
+                      svd_register = create_register(register, register.name, register_offset, register_description=descriptions.get(register.name))
+                      svd_loop_cluster.append(svd_register)
+                      doneregs.add(register.name)
 
           for register in cluster_visible_registers:
+              if register.name in doneregs:
+                  continue
               if register.name not in simplified_offsets:
                   warning("{!r}: Register {!r} has a too-complicated offset ({!r}). Skipping".format(module.rows, register.name, register.meta[0]))
                   continue
@@ -1341,7 +1398,7 @@ for module in root_dnode.children:
       removals = set()
       for node in svd_registers:
         if node.tag == "cluster":
-          if len([a.find("name").text for a in node if a.tag not in ["name", "addressOffset"]]) == 0:
+          if len([a.find("name").text for a in node if a.tag not in ["name", "addressOffset", "dimIndex", "dim", "dimIncrement"]]) == 0:
             removals.add(node)
       for r in removals:
         warning("{!r}: Removing cluster {!r} since it's empty".format(module.rows, r.find("name").text))
