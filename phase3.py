@@ -86,6 +86,7 @@ def clean_table(module, header, body, name):
     if row == []:
       continue
     if row[0:1] == ["#"]:
+      row[1] = row[1].strip()
       continue
     while len(row) >= 1 and row[0] == " ":
       del row[0]
@@ -835,7 +836,7 @@ re_n_lt = re.compile(r"[(]([0-9]+)<n<([0-9]+)[)]")
 re_n_le_lt = re.compile(r"[(]([0-9]+)≤n<([0-9]+)[)]")
 re_nN_tilde = re.compile(r"[(]([NnPx])\s*=\s*([0-9]+)~([0-9]+)[)]")
 re_n_range = re.compile(r"[(]([NnPx])\s*=\s*([0-9, ]+)[)]")
-re_direct_range = re.compile(r"\s*(0x[0-9A-Fa-f]+)~(0x[0-9A-Fa-f]+)\s*$")
+re_direct_range = re.compile(r"\s*(0x[0-9A-Fa-f]+)\s*[~–]\s*(0x[0-9A-Fa-f]+)\s*$")
 re_spaced_hex = re.compile(r"(0x[0-9A-Fa-f ]+)")
 re_verbose_range = re.compile(r"[(]([NnPx]) from ([0-9]+) to ([0-9]+)[)]")
 
@@ -943,9 +944,11 @@ def parse_Summary(container, module):
     prefix = ""
     for row in summary.rows:
       if len(row) > 1:
+        if row[0] == "#":
+          row[1] = row[1].strip()
         m = re_ts_relative_offset_0.match(row[1])
         if m:
-          section = m.group(1)
+          section = m.group(1).strip()
           if len(nrows) == 0 or ["#", section] not in nrows: # check for dupes
             nrows.append(["#", section]) # for A64, which sometimes misses the section headers...
       if len(row) > 0 and row[0].endswith("_") and len(row[0]) > 15: # ['TCON_CLK_GATE_AND_HDMI_SRC_', 'MSGBOX_WR_INT_THRESHOLD_']: # word wrap
