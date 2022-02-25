@@ -1159,8 +1159,8 @@ for module in root_dnode.children:
                   nN_match = re_n_range.search(description)
                   if nN_match:
                     _, loop_var, loop_indices, _ = re_n_range.split(description)
-              if nN_match: # FIXME: This is never reached.
-                  warning("{!r}: range match".format(register.name))
+              if nN_match:
+                  #warning("{!r}: range match".format(register.name))
                   loop_indices = list(map(int, loop_indices.split(",")))
                   spec = before_part
                   offsets[register.name] = spec
