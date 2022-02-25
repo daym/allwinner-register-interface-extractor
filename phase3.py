@@ -891,7 +891,7 @@ def register_summary_instances_guess(offsetspec, part, module):
     else:
         if offsetspec.find("Reserved") == -1:
             # Guess; TODO: Check suffix on description ("(x:1~7)") instead.
-            eval_env = {"N": 0, "n": 0, "P": 0, part: 0}
+            eval_env = {"N": 0, "n": 0, "P": 0, "x": 0, part: 0}
             for module_name, module_baseAddress in unroll_Module(module):
                 eval_env[module_name] = module_baseAddress
                 eval_env[module_name.rstrip("0")] = module_baseAddress
