@@ -846,8 +846,8 @@ def parse_Offset1(register_offset):
     register_offset = re_nN_tilde.sub(lambda match: "({}={})".format(match.group(1), ",".join(map(str, range(int(match.group(2)), int(match.group(3)) + 1)))), register_offset)
     register_offset = re_N_unicode_range.sub(lambda match: "(N={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)) + 1)))), register_offset)
     register_offset = re_N_to.sub(lambda match: "(N={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)) + 1)))), register_offset)
-    register_offset = re_n_lt.sub(lambda match: "(n={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)) + 1)))), register_offset)
-    register_offset = re_n_le_lt.sub(lambda match: "(n={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)) + 1)))), register_offset)
+    register_offset = re_n_lt.sub(lambda match: "(n={})".format(",".join(map(str, range(int(match.group(1)) + 1, int(match.group(2)))))), register_offset)
+    register_offset = re_n_le_lt.sub(lambda match: "(n={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)))))), register_offset)
     register_offset = re_verbose_range.sub(lambda match: "({}={})".format(match.group(1), ",".join(map(str, range(int(match.group(2)), int(match.group(3)) + 1)))), register_offset) # description
     return register_offset
 
@@ -1174,7 +1174,7 @@ for module in root_dnode.children:
                   for N in loop_indices:
                       eval_env["N"] = N
                       eval_env["n"] = N
-                      eval_env["x"] = N
+                      eval_env["x"] = N # FIXME remove?
                       register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
                       common_vars_registers[key][register.name].append(register_offset)
               else:
@@ -1360,7 +1360,6 @@ for module in root_dnode.children:
                 # FIXME: Enable:
               except (SyntaxError, NameError, TypeError):
                 spec = parse_Offset(register)
-                warning("{!r}: Offset2 is too complicated: {!r}, {!r}".format(register.name, spec, register.meta))
                 nN_match = re_n_range.search(spec)
                 register_offsets = []
                 if nN_match:
