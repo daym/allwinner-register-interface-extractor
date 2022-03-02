@@ -218,7 +218,8 @@ svd_root.append(text_element("series", __model))
 svd_root.append(text_element("version", "0.1")) # FIXME: version of this description, adding CMSIS-SVD 1.1 tags
 svd_root.append(text_element("description", __model))
 svd_root.append(text_element("licenseText", "questionable"))
-# TODO: <cpu> with: <name>, <revision>, <endian>little</endian>, <mpuPresent>, <fpuPresent>, <nvicPrioBits>, <vendorSystickConfig>
+# Here will be: <cpu> with: <name>, <revision>, <endian>little</endian>, <mpuPresent>, <fpuPresent>, <nvicPrioBits>, <vendorSystickConfig>
+
 svd_root.append(text_element("addressUnitBits", 8)) # min. addressable
 svd_root.append(text_element("width", 64)) # bus width # FIXME.
 
@@ -472,8 +473,6 @@ def create_register(table_definition, name, addressOffset, register_description=
             "R/Wor": "read-write", # TODO: Special-case "R/W or R" with a case analysis
             "": None, # ?
     }[access_raw.replace(" ", "").strip()]
-    if access:
-      field.append(text_element("access", access))
     modifiedWriteValues = {
             "R/WC": "clear",
             "WC": "clear",
@@ -483,16 +482,18 @@ def create_register(table_definition, name, addressOffset, register_description=
             "R/W1S": "oneToSet",
             "R/W0C": "zeroToClear",
     }.get(access_raw.replace(" ", "").strip())
-    if modifiedWriteValues:
-        field.append(text_element("modifiedWriteValues", modifiedWriteValues))
     readAction = {
             "RC": "clear",
             "RC/W": "clear",
     }.get(access_raw.replace(" ", "").strip())
-    if readAction:
-        field.append(text_element("readAction", readAction))
     field.append(text_element("description", description))
     field.append(text_element("bitRange", "[{}:{}]".format(max_bit, min_bit)))
+    if access:
+      field.append(text_element("access", access))
+    if modifiedWriteValues:
+        field.append(text_element("modifiedWriteValues", modifiedWriteValues))
+    if readAction:
+        field.append(text_element("readAction", readAction))
     if enums:
         enumeratedValues = etree.Element("enumeratedValues")
         for variant_name, n, meaning in enums:
@@ -623,6 +624,7 @@ connectives = set(["a", "the", "has", "is", "are", "includes", "the", "to", "for
 nouns = set(["threshold", "peak", "coefficient", "rms", "receive", "transmit", "gain", "smooth", "filter", "signal", "average", "attack", "sustain", "decay", "hold", "release", "size", "count", "enable", "mode", "time", "channel", "noise"])
 
 re_a_of_the_b = re.compile(r"^([A-Z]+)_OF_THE_([A-Z_]+)$")
+field_name_whitelist = {"2D", "3D", "RemoteWakeupEnable", "BulkListEnable", "ControlListEnable", "PeriodicListEnable", "PortSuspendStatusChange", "PortEnableStatusChange", "(read)PortEnableStatus", "OverCurrentIndicatorChang", "Frame List Size", "Run/Stop", "00: HV(Sync+DE)", "00: Copying is permitted", "Hsync detect window end time for corase detect", "Hsync detect window start time for coarse detection"}
 
 def field_name_from_description(description, field_word_count):
         """ Returns the field name extracted from a description.  Returns the empty string if that cannot be done.
@@ -675,7 +677,7 @@ def field_name_from_description(description, field_word_count):
            #        del words[0]
            #    q.append(words[0])
            #    del r[0]
-           name = "_".join([w for w in q if w[0].upper() in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" or re_num_al_name.match(w)]) or ""
+           name = "_".join([w for w in q if w[0].upper() in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" or any(" ".join(q).startswith(x) for x in field_name_whitelist) or re_num_al_name.match(w)]) or ""
            name = name.rstrip(".").rstrip(",").rstrip(":").rstrip()
            name = name.replace("(Read)", "(read)")
            name = name.replace("[POTPGT]", "") # redundant, and would cause it to fail.
@@ -852,7 +854,7 @@ def parse_Offset1(register_offset):
     return register_offset
 
 def parse_Offset(register):
-    assert len(register.meta) == 1
+    assert len(register.meta) == 1, register
     register_offset = register.meta[0]
     assert(register_offset.startswith("Offset:"))
     return parse_Offset1(register_offset)
@@ -1065,7 +1067,7 @@ for module in root_dnode.children:
   prefix, suffix = module.header
   if module.name == "CPU_Architecture":
     svd_cpu = create_cpu(suffix, module.rows)
-    svd_root.append(svd_cpu)
+    svd_root.insert(svd_root.index(svd_root.find("licenseText")) + 1, svd_cpu)
     continue
 
   container = module
@@ -1330,9 +1332,9 @@ for module in root_dnode.children:
                   # TODO: assert root.find("dim") is None and root.find("dimIncrement") is None and root.find("dimIndex") is None, path_string(root)
                   # TODO: Decide between "{}[%s]" withOUT dimIndex, or "{}_%s" WITH dimIndex
                   if not array:
-                    svd_loop_cluster.append(create_element_and_text("dimIndex", ",".join(map(str, loop_indices))))
-                  svd_loop_cluster.append(create_element_and_text("dimIncrement", str(common_increment)))
-                  svd_loop_cluster.append(create_element_and_text("dim", str(len(loop_indices))))
+                    svd_loop_cluster.insert(0, create_element_and_text("dimIndex", ",".join(map(str, loop_indices))))
+                  svd_loop_cluster.insert(0, create_element_and_text("dimIncrement", str(common_increment)))
+                  svd_loop_cluster.insert(0, create_element_and_text("dim", str(len(loop_indices))))
                   svd_cluster.append(svd_loop_cluster)
                   for rname, offsets in registers_and_offsets.items():
                       offsets = sorted(offsets)
@@ -1413,6 +1415,16 @@ for module in root_dnode.children:
                 registers_not_in_any_peripheral.remove(register.name)
               if register.name in registers_not_in_any_cluster:
                 registers_not_in_any_cluster.remove(register.name)
+
+      ## For making the program extract single registers
+      #if x_module_name == "USB1_HOST":
+      #    keys = ["HcControl", "HcRhPortStatus"] #, "HcRhStatus_Register", "USBCMD"]
+      #    chosen_registers = [register for register in registers if register.name in keys]
+      #    assert len(chosen_registers) == len(keys)
+      #    process_register_block(chosen_registers, svd_registers)
+      #    continue
+      #else:
+      #    continue
 
       if input_clusters and len(input_clusters) >= 2: # this avoids creating clusters like "TWI0,TWI1,TWI2,TWI3" inside TWI2.
         input_clusters = complete_input_clusters(input_clusters, subcluster_offsets)
