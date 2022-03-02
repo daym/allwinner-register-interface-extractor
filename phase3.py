@@ -1407,9 +1407,9 @@ for module in root_dnode.children:
               svd_register = create_register(register, rspec, lowest_register_offset, register_description=descriptions.get(register.name))
               if increment is not None:
                   if not array:
-                      svd_register.append(create_element_and_text("dimIndex", ",".join(map(str, loop_indices))))
-                  svd_register.append(create_element_and_text("dimIncrement", str(increment)))
-                  svd_register.append(create_element_and_text("dim", str(len(loop_indices))))
+                      svd_register.insert(0, create_element_and_text("dimIndex", ",".join(map(str, loop_indices))))
+                  svd_register.insert(0, create_element_and_text("dimIncrement", str(increment)))
+                  svd_register.insert(0, create_element_and_text("dim", str(len(loop_indices))))
               # TODO: svd_cluster.append(create_register_reference("{}_{}".format(cluster_name, register.name), register_offset, register.name))
               svd_cluster.append(svd_register)
               if register.name in registers_not_in_any_peripheral:
