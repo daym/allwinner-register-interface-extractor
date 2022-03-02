@@ -1361,8 +1361,6 @@ for module in root_dnode.children:
                     del eval_env[rn]
                 lowest_register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
                 register_offsets.append(lowest_register_offset)
-                #raise NameError("X")
-                # FIXME: Enable:
               except (SyntaxError, NameError, TypeError):
                 spec = parse_Offset(register)
                 nN_match = re_n_range.search(spec)
