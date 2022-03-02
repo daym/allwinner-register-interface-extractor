@@ -1357,8 +1357,11 @@ for module in root_dnode.children:
                 increment = None
                 dim = None
                 rspec = register.name
+                for rn in [x for x in eval_env.keys() if len(x) == 1]:
+                    del eval_env[rn]
                 lowest_register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
                 register_offsets.append(lowest_register_offset)
+                #raise NameError("X")
                 # FIXME: Enable:
               except (SyntaxError, NameError, TypeError):
                 spec = parse_Offset(register)
@@ -1417,10 +1420,12 @@ for module in root_dnode.children:
                 registers_not_in_any_cluster.remove(register.name)
 
       ## For making the program extract single registers
-      #if x_module_name == "USB1_HOST":
-      #    keys = ["HcControl", "HcRhPortStatus"] #, "HcRhStatus_Register", "USBCMD"]
+      #if x_module_name == "TCON_LCD0":
+      #    keys = ["TCON0_FRM_TAB_REG"] #, "HcRhStatus_Register", "USBCMD"]
       #    chosen_registers = [register for register in registers if register.name in keys]
       #    assert len(chosen_registers) == len(keys)
+      #    import pdb
+      #    pdb.set_trace()
       #    process_register_block(chosen_registers, svd_registers)
       #    continue
       #else:
