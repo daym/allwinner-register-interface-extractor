@@ -1368,7 +1368,6 @@ for module in root_dnode.children:
                 if nN_match:
                   spec, loop_var, loop_indices, after_part = re_n_range.split(spec)
                   loop_indices = list(map(int, loop_indices.split(",")))
-
                   for N in loop_indices:
                     eval_env["N"] = N
                     eval_env["n"] = N
@@ -1385,6 +1384,7 @@ for module in root_dnode.children:
                      array = False
                      if len(set(increments)) == 1:
                          rspec = "{}_%s".format(register.name)
+                         increment = min(increments)
                      else: # weird special case for ONE register in R40, TCON_CEU_COEF_MUL_REG: Gap in dimIndex
                          assert len(set(increments)) > 1, register.name
                          rspec = "{}_{}".format(register.name, loop_indices[0])
