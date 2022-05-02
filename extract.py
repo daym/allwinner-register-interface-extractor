@@ -29,7 +29,7 @@ fontspec_to_meaning = [
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '21'}, "h3"), # CPU Architecture
   ({'color': '#0f0f00', 'family': 'ABCDEE+Calibri,Bold', 'size': '21'}, "h3"), # Register List in A64
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '23'}, "h2"),
-  ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '18'}, "garbage-if-empty"), # Otherwise it throws off table header detection--and the text is empty anyway (TODO: check).
+  ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '18'}, "h3-garbage-if-empty"), # Otherwise it throws off table header detection--and the text is empty anyway
   ({'color': '#000000', 'family': 'Times New Roman,BoldItalic', 'size': 15}, "garbage-if-empty"),
   ({'color': '#000000', 'family': 'Times New Roman', 'size': '15'}, "garbage-if-empty"),
 ]
@@ -195,8 +195,10 @@ class State(object):
     text = text.replace("Offset :0x", "Offset: 0x")
     if attrib["meaning"] == "garbage":
       return
-    if attrib["meaning"] == "garbage-if-empty" and text.strip() == "":
+    if attrib["meaning"] in ["garbage-if-empty", "h3-garbage-if-empty"] and text.strip() == "":
       return
+    if attrib["meaning"] == "h3-garbage-if-empty":
+      attrib["meaning"] = "h3"
     #print(">" + text + "<", attrib, xx, file=sys.stderr)
     #if text.strip() == "Module Name" and self.page_number == '81':
     #  import pdb
