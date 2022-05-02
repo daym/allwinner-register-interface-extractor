@@ -832,7 +832,7 @@ def parse_Register(rspec, field_word_count = 1):
 
     return Register(name = register_name, meta = register_meta, header = register_header, bits = bits, reset_value = default_value, reset_mask = default_mask)
 
-re_N_unicode_range = re.compile(r"[(]N\s*=\s*([0-9])+–([0-9]+)[)]")
+re_N_unicode_range = re.compile(r"[(]N\s*=\s*([0-9])+\s*–\s*([0-9]+)[)]")
 re_N_to = re.compile(r"[(]N\s*=\s*([0-9]+) to ([0-9]+)[)]")
 re_n_lt = re.compile(r"[(]([0-9]+)<n<([0-9]+)[)]")
 re_n_le_lt = re.compile(r"[(]([0-9]+)≤n<([0-9]+)[)]")
