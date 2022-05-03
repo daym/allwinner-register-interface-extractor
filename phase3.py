@@ -992,7 +992,11 @@ def parse_Summary(container, module):
           a = row[-1]
           del row[-1]
           row[-1] = row[-1] + " " + a
-      if row[0] == "#":
+      if row == ["TVD_TOP"] or row == ["TVD0 "]: # D1s User Manual: They forget to make those section headers bold or in any other way mark them. But since it's unlikely to have those one-column rows otherwise, special-case them.
+          part = row[0]
+          assert part not in parts, (part, module.rows)
+          parts[part] = []
+      elif row[0] == "#":
           part = row[1].strip().upper()
           assert part not in parts, (part, module.rows)
           parts[part] = []
