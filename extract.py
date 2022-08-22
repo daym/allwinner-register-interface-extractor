@@ -177,7 +177,7 @@ class State(object):
     #  pdb.set_trace()
     if self.in_register_name_multipart: # A64. It has "Register Name: <b>Foo</b>"
       if text.strip() in ["TVD_3D_CTL5", "TVD_HLOCK3", "TVD_ENHANCE2"]:
-        # Work around misplaced "<b>" in "Register Name; xxx <b></b>" in "D1-H_User\ Manual_V1.2.pdf"
+        # Work around misplaced "<b>" in "Register Name; xxx <b></b>" in "D1-H_User Manual_V1.2.pdf"
         next = attrib["getnext"]()
         xxnext = set(xnode.tag for xnode in next.iterchildren() if xnode.tag != "a")
         xxnexttext = "".join(text for text in next.itertext())
