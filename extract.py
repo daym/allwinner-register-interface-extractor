@@ -18,6 +18,7 @@ fontspec_to_meaning = [
   ({'color': '#000000', 'family': 'Arial', 'size': '15'}, "h4"), # "0x0000 PLL_CPU Control Register (Default Value: 0x4A00_1000)"
   ({'color': '#0000ff', 'family': 'ABCDEE+Calibri', 'size': '15'}, "table-cell"), # really a register reference--but we don't care
   ({'color': '#000000', 'family': 'ABCDEE+Calibri', 'size': '15'}, "table-cell"),
+  ({'color': '#000000', 'family': 'ABCDEE+Calibri', 'size': '16'}, "table-cell"), # D1 new version
   ({'color': '#000000', 'family': 'ABCDEE+Calibri', 'size': '13'}, "table-cell"), # used once
   ({'color': '#000000', 'family': 'Calibri', 'size': '120'}, "garbage"),
 
@@ -175,7 +176,15 @@ class State(object):
     #  import pdb
     #  pdb.set_trace()
     if self.in_register_name_multipart: # A64. It has "Register Name: <b>Foo</b>"
-      assert (attrib["meaning"] == "h4" and xx == {"b"}) or attrib["meaning"] == "table-cell" or attrib["meaning"] == "h3", (self.page_number, attrib, xx)
+      if text.strip() in ["TVD_3D_CTL5", "TVD_HLOCK3", "TVD_ENHANCE2"]:
+        # Work around misplaced "<b>" in "Register Name; xxx <b></b>" in "D1-H_User\ Manual_V1.2.pdf"
+        next = attrib["getnext"]()
+        xxnext = set(xnode.tag for xnode in next.iterchildren() if xnode.tag != "a")
+        xxnexttext = "".join(text for text in next.itertext())
+        assert xxnext == {"b"} and xxnexttext.strip() == ""
+        # Fix up attribute
+        xx = {"b"}
+      assert (attrib["meaning"] == "h4" and xx == {"b"}) or attrib["meaning"] == "table-cell" or attrib["meaning"] == "h3", (self.page_number, attrib, xx, text)
       if text.strip(): # and self.in_table_header:
         self.in_register_name_multipart = False
         # Note: This has another copy!
@@ -443,6 +452,7 @@ def traverse(state, root, indent = 0, fontspecs = []): # fontspecs: [(id, node w
 
     #if attrib["meaning"] in ["h1", "h2", "h3", "h4", "table-cell"]:
     if node.tag == "text":
+      attrib["getnext"] = node.getnext
       state.process_text(text, attrib, xx)
     if node.tag == "b":
       pass
