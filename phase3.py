@@ -61,7 +61,7 @@ def clean_table(module, header, body, name):
         nrows.append(row)
     body[:] = nrows
 
-  if body[-1][-1].strip().endswith("register list:"): # D1 sometimes puts "... register list:" right into the previous module-decl.
+  if len(body) > 0 and len(body[-1]) > 0 and body[-1][-1].strip().endswith("register list:"): # D1 sometimes puts "... register list:" right into the previous module-decl.
     s = body[-1][-1]
     del body[-1][-1]
     while body[-1:] == [[]] or body[-1:] == [[' ']]:
@@ -908,7 +908,7 @@ re_a_slash_b = re.compile(r"^([A-Za-z]*)([0-9]+)/([0-9]+)$")
 def parse_Summary(container, module):
     summary = container
     # Special case for D1: If the MODULE ends in "CCU register list: ", then move that one to the summary instead.
-    if len(module.rows[-1]) == 1 and module.rows[-1][0].strip().endswith(" register list:"):
+    if len(module.rows) > 0 and len(module.rows[-1]) == 1 and module.rows[-1][0].strip().endswith(" register list:"):
       r = module.rows[-1][0]
       del module.rows[-1]
       summary.rows.insert(0, [r])
@@ -1137,6 +1137,9 @@ for module in root_dnode.children:
   assert not (len(container.children) == 1 and container.children[0].header[1][:3] == ['Register_Name', 'Offset', 'Description']), module.rows
   assert suffix == ["Module_Name", "Base_Address"], module.header
   peripherals = [r for r in module.rows if r != []]
+  if len(peripherals) == 0:
+    warning("peripherals are empty for module {!r}".format(module))
+    continue
   subcluster_offsets = [(module_name.strip()[:-len(" OFFSET")], eval(module_baseAddress, {})) for module_name, module_baseAddress in peripherals if module_name.strip().endswith(" OFFSET")]
   peripherals = [(module_name.strip(), module_baseAddress.replace("(for HDMI)", "")) for module_name, module_baseAddress in peripherals if not module_name.strip().endswith(" OFFSET")]
   # This can be used to introduce extra eval variables.
