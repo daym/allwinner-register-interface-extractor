@@ -832,7 +832,7 @@ def parse_Register(rspec, field_word_count = 1):
 
     return Register(name = register_name, meta = register_meta, header = register_header, bits = bits, reset_value = default_value, reset_mask = default_mask)
 
-re_N_unicode_range = re.compile(r"[(]N\s*=\s*([0-9])+\s*–\s*([0-9]+)[)]")
+re_N_unicode_range = re.compile(r"[(]([NnPx])\s*=\s*([0-9])+\s*–\s*([0-9]+)[)]")
 re_N_to = re.compile(r"[(]N\s*=\s*([0-9]+) to ([0-9]+)[)]")
 re_n_lt = re.compile(r"[(]([0-9]+)<n<([0-9]+)[)]")
 re_n_le_lt = re.compile(r"[(]([0-9]+)≤n<([0-9]+)[)]")
@@ -846,7 +846,7 @@ def parse_Offset1(register_offset):
     register_offset = re_spaced_hex.sub(lambda match: match.group(1).replace(" ", ""), register_offset)
     register_offset = re_direct_range.sub(lambda match: "{} + N*4(N={})".format(match.group(1), ",".join(map(str, range(0, (eval(match.group(2), {}) + 4 - eval(match.group(1), {})) // 4)))), register_offset)
     register_offset = re_nN_tilde.sub(lambda match: "({}={})".format(match.group(1), ",".join(map(str, range(int(match.group(2)), int(match.group(3)) + 1)))), register_offset)
-    register_offset = re_N_unicode_range.sub(lambda match: "(N={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)) + 1)))), register_offset)
+    register_offset = re_N_unicode_range.sub(lambda match: "({}={})".format(match.group(1), ",".join(map(str, range(int(match.group(2)), int(match.group(3)) + 1)))), register_offset)
     register_offset = re_N_to.sub(lambda match: "(N={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)) + 1)))), register_offset)
     register_offset = re_n_lt.sub(lambda match: "(n={})".format(",".join(map(str, range(int(match.group(1)) + 1, int(match.group(2)))))), register_offset)
     register_offset = re_n_le_lt.sub(lambda match: "(n={})".format(",".join(map(str, range(int(match.group(1)), int(match.group(2)))))), register_offset)
@@ -1161,29 +1161,39 @@ for module in root_dnode.children:
               # TODO: just call register_summary_instances_guess or something
               nN_match = re_n_range.search(spec)
               if nN_match:
-                  before_part, loop_var, loop_indices, after_part = re_n_range.split(spec)
+                  before_part, loop_var, loop_indices, after_part = re_n_range.split(spec, maxsplit=1)
               elif description := descriptions.get(register.name):
                   before_part = spec
                   description = parse_Offset1(description)
                   nN_match = re_n_range.search(description)
                   if nN_match:
-                    _, loop_var, loop_indices, _ = re_n_range.split(description)
+                    _, loop_var, loop_indices, after_part = re_n_range.split(description, maxsplit=1)
               if nN_match:
                   #warning("{!r}: range match".format(register.name))
                   loop_indices = list(map(int, loop_indices.split(",")))
                   spec = before_part
                   offsets[register.name] = spec
-                  key = tuple(tuple([loop_var, tuple(loop_indices)]))
+                  key = tuple([tuple([loop_var, tuple(loop_indices)])])
                   assert loop_var in ["N", "n", "x"]
+                  nN_match2 = re_n_range.search(after_part)
+                  qloop_var = None
+                  qloop_indices = None, None
+                  if nN_match2 is not None:
+                      _, qloop_var, qloop_indices, qafter_part = re_n_range.split(after_part, maxsplit=1)
+                      assert re_n_range.search(qafter_part) is None
+                      qloop_indices = list(map(int, qloop_indices.split(",")))
+                      key = tuple([tuple([loop_var, tuple(loop_indices)]), tuple([qloop_var, tuple(qloop_indices)])])
+
                   if key not in common_vars_registers:
                       common_vars_registers[key] = {}
                   assert register.name not in common_vars_registers[key]
                   common_vars_registers[key][register.name] = []
-                  # Note: can contain N, n, P
+                  # Note: can contain N, n
                   for N in loop_indices:
-                      eval_env["N"] = N
-                      eval_env["n"] = N
-                      eval_env["x"] = N # FIXME remove?
+                      eval_env[loop_var] = N
+                      if qloop_var is not None: # second loop variable (P)
+                          assert qloop_var == "P" and loop_var == "N" # just in case
+                          eval_env[qloop_var] = 0 # P index will be handled later
                       register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
                       common_vars_registers[key][register.name].append(register_offset)
               else:
@@ -1314,7 +1324,7 @@ for module in root_dnode.children:
           doneregs = set()
           for loop_spec, registers_and_offsets in common_vars_registers.items():
               if loop_spec:
-                  loop_var, loop_indices = loop_spec
+                  (loop_var, loop_indices), *rest_loop = loop_spec
                   lowest_offset = 2**32
                   if len(registers_and_offsets) < 2: # not worth it
                       continue
@@ -1328,16 +1338,23 @@ for module in root_dnode.children:
                       increment = increments[0]
                       if common_increment is None:
                         common_increment = increment
+                  if len(rest_loop) > 0:
+                      [(qloop_var, qloop_indices)] = rest_loop
+                      assert list(qloop_indices) == list(range(len(qloop_indices)))
+                      assert qloop_var == "P"
+                  else:
+                      qloop_var = None
+                      qloop_indices = None, None
                   # Make svd_cluster under svd_cluster, with [%s] and dimIndex etcetc, stash all the registers_and_offsets in there
                   if list(loop_indices) == list(range(len(loop_indices))): # 0..N-1
-                    cname = "_{}[%s]".format(loop_var)
+                    cname = "_{}{}[%s]".format(loop_var, qloop_var or "")
                     array = True
                   else:
-                    cname = "_{}_%s".format(loop_var)
+                    cname = "_{}{}_%s".format(loop_var, qloop_var or "")
                     array = False
                   svd_loop_cluster = create_cluster(cname, lowest_offset)
                   # TODO: assert root.find("dim") is None and root.find("dimIncrement") is None and root.find("dimIndex") is None, path_string(root)
-                  # TODO: Decide between "{}[%s]" withOUT dimIndex, or "{}_%s" WITH dimIndex
+                  # Decide between "{}[%s]" withOUT dimIndex, or "{}_%s" WITH dimIndex
                   if not array:
                     svd_loop_cluster.insert(0, create_element_and_text("dimIndex", ",".join(map(str, loop_indices))))
                   svd_loop_cluster.insert(0, create_element_and_text("dimIncrement", str(common_increment)))
@@ -1347,7 +1364,14 @@ for module in root_dnode.children:
                       offsets = sorted(offsets)
                       register_offset = offsets[0] - lowest_offset
                       register = visible_registers[rname]
-                      svd_register = create_register(register, register.name, register_offset, register_description=descriptions.get(register.name))
+                      register_name = register.name
+                      if len(rest_loop) > 0:
+                          assert register_name.find("%s") == -1
+                          register_name = "{}[%s]".format(register_name)
+                      svd_register = create_register(register, register_name, register_offset, register_description=descriptions.get(register.name))
+                      if len(rest_loop) > 0:
+                          svd_register.insert(0, create_element_and_text("dimIncrement", "4")) # TODO: Remove hardcoding
+                          svd_register.insert(0, create_element_and_text("dim", str(len(qloop_indices))))
                       svd_loop_cluster.append(svd_register)
                       doneregs.add(register.name)
 
