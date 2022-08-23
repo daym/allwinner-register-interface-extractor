@@ -1193,7 +1193,12 @@ for module in root_dnode.children:
                       eval_env[loop_var] = N
                       if qloop_var is not None: # second loop variable (P)
                           assert qloop_var == "P" and loop_var == "N" # just in case
+                          eval_env[qloop_var] = 1 # P index will be handled later
+                          qregister_offset = eval(spec[len("Offset:"):].strip(), eval_env)
                           eval_env[qloop_var] = 0 # P index will be handled later
+                          register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
+                          # Hardcoded at another spot, too.
+                          assert qregister_offset - register_offset == 4, (register_offset, qregister_offset)
                       register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
                       common_vars_registers[key][register.name].append(register_offset)
               else:
