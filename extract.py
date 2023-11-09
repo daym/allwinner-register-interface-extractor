@@ -208,6 +208,8 @@ class State(object):
       return
     if attrib["meaning"] == "h3-garbage-if-empty":
       attrib["meaning"] = "h3"
+    if self.in_table == "TSF_CSR" and attrib["meaning"] == "table-cell" and text.startswith("TSFGSR"):
+       print("'R/W', \r'0',") #A64 restore missing
     #print(">" + text + "<", attrib, xx, file=sys.stderr)
     #if text.strip() == "Module Name" and self.page_number == '81':
     #  import pdb
