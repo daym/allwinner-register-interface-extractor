@@ -95,7 +95,7 @@ def clean_table(module, header, body, name):
       for i, x in enumerate(row):
           if len(nrow) >= len(suffix):
             nrow.append(x)
-          elif x != " ":
+          elif x != " " or (len(nrow) == len(suffix) - 2): #pass " " to Default/Hex field
             nrow.append(x)
       row[:] = nrow
     number_of_access_specs = len([x for x in suffix if x.find("Read/Write") != -1])
