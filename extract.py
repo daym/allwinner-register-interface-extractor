@@ -34,6 +34,14 @@ fontspec_to_meaning = [
   ({'color': '#000000', 'family': 'Times New Roman,BoldItalic', 'size': 15}, "garbage-if-empty"),
   ({'color': '#000000', 'family': 'Times New Roman', 'size': '15'}, "garbage-if-empty"),
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '36'}, "h0"),
+
+  #V3s 
+  ({'color': '#000000', 'family': 'SimSun', 'opacity': '0.298039', 'size': '88'}, "garbage"),
+  ({'color': '#ff0000', 'family': 'ABCDEE+Calibri', 'size': '15'}, "garbage"),
+  ({'color': '#000000', 'family': 'ABCDEE+Calibri,BoldItalic', 'size': '15'}, "note"),
+  ({'color': '#000000', 'family': 'ABCDEE+Calibri,Italic', 'size': '15'}, "garbage"),
+  ({'color': '#000000', 'family': 'ABCDEE+Calibri', 'size': '14'}, "table-cell"), #MII_CMD
+
 ]
 
 def hashable_fontspec(d):
@@ -47,7 +55,7 @@ def xdict(fontspec_to_meaning):
 assert len(xdict(fontspec_to_meaning)) == len(fontspec_to_meaning)
 fontspec_to_meaning = xdict(fontspec_to_meaning)
 
-with open(sys.argv[1]) as f:
+with open(sys.argv[1], encoding="UTF-8") as f:
   tree = etree.parse(f)
 
 def quote(s):
@@ -135,6 +143,13 @@ class State(object):
         rname = "PWM_CONT_REG" # not counter
     elif h4 == "System Internal 32K Clock Auto Calibration Register" and rname == "INTOSC_CLK_AUTO_CALI_REG" and self.offset == "0x0314": # R40
         rname = "INTOSC_32K_CLK_AUTO_CALI_REG"
+    elif model == "V3s":    
+      if rname == "DA16CALI_DATA" and self.offset == "0x17": #V3s
+          rname = "BIAS16CALI_DATA"
+      elif rname == "SD_CTRL" and self.offset == "0x0044": #V3s
+          rname = "SD_FUNS"    
+      elif rname == "HSIC_STATUS" and self.offset == "0x824": #V3s
+          rname = "HSIC_PHY_STATUS"    
     return rname
 
   def start_table(self, rname):
@@ -185,7 +200,7 @@ class State(object):
         assert xxnext == {"b"} and xxnexttext.strip() == ""
         # Fix up attribute
         xx = {"b"}
-      assert (attrib["meaning"] == "h4" and xx == {"b"}) or attrib["meaning"] == "table-cell" or attrib["meaning"] == "h3", (self.page_number, attrib, xx, text)
+      assert (attrib["meaning"] == "h4" and xx == {"b"}) or attrib["meaning"] == "table-cell" or attrib["meaning"] == "h3" or not text.strip(), (self.page_number, attrib, xx, text)
       if text.strip(): # and self.in_table_header:
         self.in_register_name_multipart = False
         # Note: This has another copy!
@@ -197,6 +212,11 @@ class State(object):
           #assert text.strip() != "Read/Write"
           self.finish_this_table()
           self.start_table(rname)
+          if model == "V3s":
+            if rname == "AC_PR_CFG" and not self.offset: #V3s missing or wrong formatted offsets
+              self.offset = '0x400'
+            if rname == "CE_CTL" and self.offset == '0x  ':
+              self.offset = "0x0" 
           assert self.offset is not None, (rname, self.page_number)
           print("{!r},".format("Offset: " + self.offset))
           self.offset = None
@@ -308,8 +328,8 @@ class State(object):
                   self.h4 = text # TODO: print it somehow
               else:
                   self.finish_this_table()
-      #else:
-      #    self.finish_this_table()
+      elif model == "V3s" and left < self.table_left: #V3s
+        self.finish_this_table()   
     if self.in_table and self.in_table_header and text.strip() != "":
       if self.h3 and (self.h3.lower().rstrip().endswith("register description") or self.h3.lower().rstrip().endswith("register list")) and attrib["meaning"] == "table-cell":
            if len(self.table_columns) > 0:
@@ -356,12 +376,19 @@ class State(object):
           print("{!r}, ".format(text))
       elif attrib["meaning"] == "table-cell":
         if self.table_left is not None and abs(self.table_left -  int(attrib["left"])) <= 1:
-          print("], [") # next row
+          if model == "V3s" and text.strip() == "":
+            text = ""
+            self.finish_this_table()
+            return
+          else:
+            print("], [") # next row  
         if text.strip().startswith("Register Name: "):
           rname = text.strip().replace("Register Name: ", "")
           assert rname == self.in_table
         elif int(attrib["left"]) >= 780 and text.startswith("  ") and re_digits.match(text.strip()): # page number
           pass
+        elif self.in_table != "CPU Architecture" and self.table_left is not None and int(attrib["left"]) < self.table_left:
+          self.finish_this_table()
         else:
           print("{!r}, ".format(text))
       elif attrib["meaning"] == "h4" and self.in_table and not self.in_table_header and len(self.table_columns) >= 3 and self.in_column_P(int(attrib['left']), len(self.table_columns) - 1):
@@ -375,7 +402,8 @@ class State(object):
         else:
             print("# repeated table header {} {!r}".format(text, attrib))
       else:
-        print("# ??? {} {!r}".format(text, attrib))
+        if text.strip() != "": #dont print spaces
+          print("# ??? {} {!r}".format(text, attrib))
     if attrib["meaning"] == "h4" and not self.in_table:
       self.h4 = text
 
@@ -429,7 +457,7 @@ def traverse(state, root, indent = 0, fontspecs = []): # fontspecs: [(id, node w
       #print("STILL OK", node.text, file=sys.stderr)
       top = int(attrib["top"])
       attrib = dict([(k,v) for k, v in attrib.items() if k not in ["top", "width", "height"]])
-      x = list(attrib.keys())
+      #x = list(attrib.keys())
       #assert x == ["font"] or x == []
       if node.text is None or set(xnode.tag for xnode in node.iterchildren() if xnode.tag == "a"): # for example if there are <a ...>
         text = "".join(text for text in node.itertext()) # XXX maybe recurse
