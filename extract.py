@@ -33,6 +33,7 @@ fontspec_to_meaning = [
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '18'}, "h3-garbage-if-empty"), # Otherwise it throws off table header detection--and the text is empty anyway
   ({'color': '#000000', 'family': 'Times New Roman,BoldItalic', 'size': 15}, "garbage-if-empty"),
   ({'color': '#000000', 'family': 'Times New Roman', 'size': '15'}, "garbage-if-empty"),
+  ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '36'}, "h0"),
 ]
 
 def hashable_fontspec(d):
