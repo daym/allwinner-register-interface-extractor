@@ -39,6 +39,10 @@ def clean_table(module, header, body, name):
     del body[0]
   elif suffix == ['Bit', 'Read/Write', 'Default/Hex', 'Description', 'HCD', 'HC']:
     suffix = ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']
+  elif suffix == ['Bit', 'Read/Write', 'Default/HEX', 'Description', 'HCD', 'HC']: 
+    suffix = ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']  
+  elif suffix == ['Bit', 'Read/Write', 'Default', 'Description', 'HCD', 'HC']: 
+    suffix = ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']    
 
   header = (prefix, suffix)
   while body[0:1] == [[]] or body[0:1] == [[" "]]:
@@ -1162,12 +1166,23 @@ for module in root_dnode.children:
               nN_match = re_n_range.search(spec)
               if nN_match:
                   before_part, loop_var, loop_indices, after_part = re_n_range.split(spec, maxsplit=1)
-              elif description := descriptions.get(register.name):
+              else:
+                if description := descriptions.get(register.name):
                   before_part = spec
                   description = parse_Offset1(description)
                   nN_match = re_n_range.search(description)
-                  if nN_match:
-                    _, loop_var, loop_indices, after_part = re_n_range.split(description, maxsplit=1)
+                if not nN_match and "n" in spec.split(" ")[1]:
+                  try: # Try to get bitfield expand formula from description field. V3s
+                    description = register.bits[0][2]
+                    before_part = spec
+                    description = parse_Offset1(description)
+                    nN_match = re_n_range.search(description)
+                    if nN_match: #store in meta for futher processing
+                       register.meta[0] += " " + nN_match.string[nN_match.string.find("("):nN_match.string.find(")") + 1]
+                  except:
+                    pass  
+                if nN_match:
+                  _, loop_var, loop_indices, after_part = re_n_range.split(description, maxsplit=1)
               if nN_match:
                   #warning("{!r}: range match".format(register.name))
                   loop_indices = list(map(int, loop_indices.split(",")))
@@ -1180,10 +1195,14 @@ for module in root_dnode.children:
                   qloop_indices = None, None
                   if nN_match2 is not None:
                       _, qloop_var, qloop_indices, qafter_part = re_n_range.split(after_part, maxsplit=1)
-                      assert re_n_range.search(qafter_part) is None
-                      qloop_indices = list(map(int, qloop_indices.split(",")))
-                      key = tuple([tuple([loop_var, tuple(loop_indices)]), tuple([qloop_var, tuple(qloop_indices)])])
-
+                      if qloop_var == loop_var: #V3s CE_KEY[n] for example
+                         warning("{!r}: qloop_var value mismatch. Skipping".format(register.name))
+                         qloop_var = None
+                         qloop_indices = None
+                      else:
+                        assert re_n_range.search(qafter_part) is None
+                        qloop_indices = list(map(int, qloop_indices.split(",")))
+                        key = tuple([tuple([loop_var, tuple(loop_indices)]), tuple([qloop_var, tuple(qloop_indices)])])
                   if key not in common_vars_registers:
                       common_vars_registers[key] = {}
                   assert register.name not in common_vars_registers[key]
