@@ -223,6 +223,42 @@ class State(object):
         if text.strip() != "Bit":
           return
     text = text.replace("Offset :0x", "Offset: 0x")
+    text = text.replace("…", "...").replace("......", "...").replace("‘", "`") \
+        .replace("’", "`").replace("“", "`").replace("”", "`").replace("–", "-") \
+        .replace("—", "-").replace("≤", "<=").replace("³", " ").replace("①", "1.") \
+        .replace("②", "2.").replace("¼", "25%").replace("½", "50%")
+    if model == "V3s":
+      if self.in_table and self.in_table == "AC_ROMIXSC" and text.startswith("MIXMUTE "): #V3s
+        text = "RMIXMUTE "
+      if self.in_table and self.in_table == "CSI0_CLK_REG" and text == "000":
+        text = ""
+        attrib["meaning"] = ""
+      if self.in_table and self.in_table == "CSI0_CLK_REG" and text == "OSC24M ":
+        text = "000: OSC24M"
+      if attrib["meaning"] == "garbage-if-empty" and text.startswith("AC_DIG_CLK_REG"): #V3s wrong text id
+        attrib["meaning"] = "table-cell"
+      if self.h3 == "USB OTG Register List " and text.startswith("EHCI Capability Register"): #kill wrong h4
+        attrib["meaning"] = ""
+      if self.in_table == "CALIBRATION_CTRL" and text.startswith("Description"): #V3s description with bad text id
+        attrib["meaning"] = "table-cell"
+      if self.in_table == "SD_NTSR_REG" and (text.startswith("31 ") or text.startswith("30:6 ")):
+        attrib["meaning"] = "table-cell"
+      if (self.in_table and (self.in_table.startswith("CSI0_") or self.in_table.startswith("CCI_") or self.in_table.endswith("_DMA_STA")) and \
+        (text.startswith("/") or text.startswith("R/W") or text.startswith("0x") or text.startswith("0 ") or \
+          text.startswith("R ") or text.startswith("0x7fff") or text.startswith("1 ") or text.startswith("S_TRAN_"))):
+        attrib["meaning"] = "table-cell"
+      if self.in_table and self.in_table.startswith("ADDR0") and text.startswith("st"):
+        attrib["meaning"] = "table-cell"
+      if self.in_table and self.in_table.startswith("ADDRx") and text.startswith("："):
+        text = ":"
+        attrib["meaning"] = "table-cell"
+      if (self.in_table == "Module List" and self.h4 == "CMAP module " and text == "+" ):
+        attrib["meaning"] = "table-cell"
+    if self.in_table and attrib["meaning"] == "note":
+      if int(attrib["left"]) < self.table_column_lefts[-1]:
+        self.finish_this_table()
+      else:
+        attrib["meaning"] = "table-cell"    
     if attrib["meaning"] == "garbage":
       return
     if attrib["meaning"] in ["garbage-if-empty", "h3-garbage-if-empty"] and text.strip() == "":
