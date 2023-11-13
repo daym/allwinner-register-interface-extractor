@@ -42,6 +42,8 @@ fontspec_to_meaning = [
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Italic', 'size': '15'}, "garbage"),
   ({'color': '#000000', 'family': 'ABCDEE+Calibri', 'size': '14'}, "table-cell"), #MII_CMD
 
+  #H3
+  ({'color': '#000000', 'family': 'Calibri', 'opacity': '0.298039', 'size': '106'}, "garbage"),
 ]
 
 def hashable_fontspec(d):
@@ -79,6 +81,7 @@ class State(object):
     self.table_header_autobolder = False
     self.prev_table_name = None
     self.all_table_names = set()
+    self.in_module = None
 
   def fixed_table_name(self, rname):
     h4 = "" if not self.h4 else self.h4.split("(")[0].strip()
@@ -146,10 +149,11 @@ class State(object):
     elif model == "V3s":    
       if rname == "DA16CALI_DATA" and self.offset == "0x17": #V3s
           rname = "BIAS16CALI_DATA"
-      elif rname == "SD_CTRL" and self.offset == "0x0044": #V3s
-          rname = "SD_FUNS"    
       elif rname == "HSIC_STATUS" and self.offset == "0x824": #V3s
-          rname = "HSIC_PHY_STATUS"    
+          rname = "HSIC_PHY_STATUS"
+    elif model in ["V3s", "H3"]:
+      if rname == "SD_CTRL" and self.offset == "0x0044": #V3s H3
+          rname = "SD_FUNS"                     
     return rname
 
   def start_table(self, rname):
@@ -191,6 +195,17 @@ class State(object):
     #  print(attrib)
     #  import pdb
     #  pdb.set_trace()
+    if self.in_module and text.startswith(self.in_module[:-2]):
+      if "_" in text: #fix prefix
+        text = text.split("_")[1:]
+        text.insert(0, self.in_module)
+        text = "_".join(text)     
+      else: #fix description
+        text = text.split(" ")
+        for i, sub in enumerate(text):
+          if sub.startswith(self.in_module[:-2]): 
+              text[i] = self.in_module
+        text = " ".join(text)    
     if self.in_register_name_multipart: # A64. It has "Register Name: <b>Foo</b>"
       if text.strip() in ["TVD_3D_CTL5", "TVD_HLOCK3", "TVD_ENHANCE2"]:
         # Work around misplaced "<b>" in "Register Name; xxx <b></b>" in "D1-H_User Manual_V1.2.pdf"
@@ -217,6 +232,9 @@ class State(object):
               self.offset = '0x400'
             if rname == "CE_CTL" and self.offset == '0x  ':
               self.offset = "0x0" 
+          elif model == "H3":
+            if rname == "AC_PR_CFG" and not self.offset:
+               self.offset = "0x2DE9C0"
           assert self.offset is not None, (rname, self.page_number)
           print("{!r},".format("Offset: " + self.offset))
           self.offset = None
@@ -319,7 +337,11 @@ class State(object):
       #self.finish_this_table()
       # Using the same name here so chaining into a tree works
       rname = "Module List"
-      cname = "module name" if text.strip().lower().startswith("module name") else "register name"
+      if text.strip().lower().startswith("module name"):
+        cname = "module name" 
+        self.in_module = ""
+      else: 
+         cname = "register name"
       #if self.table_columns != ["Item"] and self.table_columns != ['Module Name ', 'Base Address '] and self.table_columns != ['Register Name ', 'Offset ', 'Description ']:
       if self.in_table != rname or (self.in_table and len(self.table_columns) > 0 and self.table_columns[0].strip().lower() != cname):
         self.finish_this_table()
@@ -391,8 +413,11 @@ class State(object):
           self.table_left = int(attrib["left"])
         else:
           assert int(attrib["left"]) > self.table_left, (self.in_table, text)
-        self.table_columns.append(text)
-        self.table_column_lefts.append(int(attrib["left"]))
+        if self.table_columns and self.table_columns[-1].lower().startswith("description") and text.strip().lower() != "hc" and text.strip().lower() != "hcd": #description is last field. Drop garbage. H3 USB
+          attrib["meaning"] = "garbage"
+        else:  
+          self.table_columns.append(text)
+          self.table_column_lefts.append(int(attrib["left"]))
       else:
         print("], [[")
         self.in_table_header = False
@@ -425,7 +450,15 @@ class State(object):
           pass
         elif self.in_table != "CPU Architecture" and self.table_left is not None and int(attrib["left"]) < self.table_left:
           self.finish_this_table()
+        elif model == "H3" and self.in_table == "Module List" and text.startswith("AC_PR_CFG"):
+          print("{!r}, \r'0x2DE9C0', \r'AC Parameter Configuration Register', ".format(text))
+          self.finish_this_table()
         else:
+          if self.in_table == "Module List":
+            if text.strip() == "TCON0":
+              self.in_module = "TCON0"
+            elif text.strip() == "TCON1":
+              self.in_module = "TCON1"
           print("{!r}, ".format(text))
       elif attrib["meaning"] == "h4" and self.in_table and not self.in_table_header and len(self.table_columns) >= 3 and self.in_column_P(int(attrib['left']), len(self.table_columns) - 1):
         # This can be a repeated table column header--in which case we don't care--or a bolded field name--which we very much want. Distinguish those.
