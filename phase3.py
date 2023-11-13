@@ -94,13 +94,15 @@ def clean_table(module, header, body, name):
       continue
     while len(row) >= 1 and row[0] == " ":
       del row[0]
-    if len([x for x in row if x == " "]) > 0:
+    if len([x for x in row if x == " "]) > 0 or len(row) == 1: #for bif field formula
       nrow = []
       for i, x in enumerate(row):
           if len(nrow) >= len(suffix):
             nrow.append(x)
           elif x != " " or (len(nrow) == len(suffix) - 2): #pass " " to Default/Hex field
             nrow.append(x)
+      while len(nrow) < len(suffix):
+        nrow.append(" ") #pass " " to empty fields        
       row[:] = nrow
     number_of_access_specs = len([x for x in suffix if x.find("Read/Write") != -1])
     for i in range(number_of_access_specs):
@@ -715,7 +717,11 @@ def parse_Register(rspec, field_word_count = 1):
     bits = []
     default_value = 0
     default_mask = 0
-    for register_field in register_fields:
+    register_fields_expanded = []
+
+    for i, register_field in enumerate(register_fields):
+        if register_field == []:
+          continue
         # FIELD ['3 ', 'R/W ', '0x0 ', 'RMD_EN  Ramp Manual Down Enable  0: Disabled  1: Enabled ']
         while len(register_field) < len(register_header):
             register_field.append("")
@@ -733,6 +739,46 @@ def parse_Register(rspec, field_word_count = 1):
         if access.strip() == "/": # no access
             #info("{!r}: Field {!r} cannot be accessed".format(register_name, register_field))
             continue
+        if res := re_i_range.search(bitrange):
+           range_row = register_fields[i + 1]
+           range_cell = range_row[0]
+           range = re_nN_tilde.search(range_cell) #i range located at next row
+           field_formula = parse_exp_field(bitrange + range.string) 
+           field_formula, loop_var, loop_indices, _ = re_n_range.split(field_formula)
+           range = re.split(r":", field_formula)
+           if len(range) == 2:
+              max_bit, min_bit = range
+           elif len(range) == 1:
+              max_bit = min_bit = range[0]
+           else:
+            warning("Field could not be parsed as a bitrange: {!r}".format(parts))
+            continue
+           loop_indices = list(map(int, loop_indices.split(","))) 
+           while len(register_field) < len(register_header):
+            register_field.insert(1, " ")
+           for k, field in enumerate(register_field[1:]):
+              if field.strip() == "" and len(range_row[k + 1].strip()) < 4 :
+                 register_field[k + 1] = range_row[k + 1]
+           for description in range_row[1:]:
+            if len(description.strip()) > 3:
+              register_field[-1] += description
+           register_fields[i + 1] = []              
+           for j in loop_indices:
+            eval_env[loop_var] = loop_indices[-1] - j
+            if max_bit == min_bit:
+              register_field[0] = "{}".format(eval(max_bit, eval_env))
+            else:
+              register_field[0] = "{}:{}".format(eval(max_bit, eval_env), eval(min_bit, eval_env))
+            register_fields_expanded.append(register_field) 
+        else:
+           register_fields_expanded.append(register_field)       
+    register_fields = register_fields_expanded
+    for register_field in register_fields:   
+        if register_header == ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']:
+            # FIXME: Provide access_method parameter and choose which ACCESS to use
+            bitrange, access, access2, default_part, description = register_field
+        else:
+            bitrange, access, default_part, description = register_field                          
         parts = bitrange.split(":")
         if len(parts) == 2:
             max_bit, min_bit = parts
@@ -840,12 +886,21 @@ re_N_unicode_range = re.compile(r"[(]([NnPx])\s*=\s*([0-9])+\s*–\s*([0-9]+)[)]
 re_N_to = re.compile(r"[(]N\s*=\s*([0-9]+) to ([0-9]+)[)]")
 re_n_lt = re.compile(r"[(]([0-9]+)<n<([0-9]+)[)]")
 re_n_le_lt = re.compile(r"[(]([0-9]+)≤n<([0-9]+)[)]")
-re_nN_tilde = re.compile(r"[(]([NnPx])\s*=\s*([0-9]+)~([0-9]+)[)]")
-re_n_range = re.compile(r"[(]([NnPx])\s*=\s*([0-9, ]+)[)]")
+re_nN_tilde = re.compile(r"[(]([NnPxi])\s*=\s*([0-9]+)~([0-9]+)[)]")
+re_n_range = re.compile(r"[(]([NnPxi])\s*=\s*([0-9, ]+)[)]")
 re_direct_range = re.compile(r"\s*(0x[0-9A-Fa-f]+)\s*[~–]\s*(0x[0-9A-Fa-f]+)\s*$")
 re_spaced_hex = re.compile(r"(0x[0-9A-Fa-f ]+)")
 re_verbose_range = re.compile(r"[(]([NnPx]) from ([0-9]+) to ([0-9]+)[)]")
 
+re_i_semicolon = re.compile(r"\s*[[]([0-9i\+]+)\s*:\s*([0-9i\+]+)\s*[]]") #[4i+3:4i] etc
+re_i_group = re.compile(r"([0-9]+)(i)")
+re_i_range = re.compile(r"[[].*(i{1,}).*[]]")
+
+def parse_exp_field(formula):
+    formula = formula.replace("[","").replace("]","")
+    formula = re_nN_tilde.sub(lambda match: "({}={})".format(match.group(1), ",".join(map(str, range(int(match.group(2)), int(match.group(3)) + 1)))), formula)
+    formula = re_i_group.sub(lambda match: "{}*{}".format(match.group(1), match.group(2)), formula)
+    return formula
 def parse_Offset1(register_offset):
     register_offset = re_spaced_hex.sub(lambda match: match.group(1).replace(" ", ""), register_offset)
     register_offset = re_direct_range.sub(lambda match: "{} + N*4(N={})".format(match.group(1), ",".join(map(str, range(0, (eval(match.group(2), {}) + 4 - eval(match.group(1), {})) // 4)))), register_offset)
