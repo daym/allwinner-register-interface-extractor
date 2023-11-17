@@ -86,6 +86,10 @@ class State(object):
   def fixed_table_name(self, rname):
     h4 = "" if not self.h4 else self.h4.split("(")[0].strip()
     rname = rname.split("(n=")[0] # "NDFC_USER_DATAn(n=0~15)" in R40
+    if self.in_module and rname.startswith(self.in_module[:-2]): #bulk fix prefixes
+        rname = rname.split("_")[1:]
+        rname.insert(0, self.in_module)
+        rname = "_".join(rname)     
     if rname == "HcPeriodCurrentED(PCED)": # R40
         rname = "HcPeriodCurrentED" # FIXME
     rname = rname.replace("_C0~3", "") # in R40 # FIXME
@@ -200,17 +204,6 @@ class State(object):
     #  print(attrib)
     #  import pdb
     #  pdb.set_trace()
-    if self.in_module and text.startswith(self.in_module[:-2]):
-      if "_" in text: #fix prefix
-        text = text.split("_")[1:]
-        text.insert(0, self.in_module)
-        text = "_".join(text)     
-      else: #fix description
-        text = text.split(" ")
-        for i, sub in enumerate(text):
-          if sub.startswith(self.in_module[:-2]): 
-              text[i] = self.in_module
-        text = " ".join(text)    
     if self.in_register_name_multipart: # A64. It has "Register Name: <b>Foo</b>"
       if text.strip() in ["TVD_3D_CTL5", "TVD_HLOCK3", "TVD_ENHANCE2"]:
         # Work around misplaced "<b>" in "Register Name; xxx <b></b>" in "D1-H_User Manual_V1.2.pdf"
@@ -474,11 +467,6 @@ class State(object):
           print("{!r}, ".format(text))
       elif attrib["meaning"] == "table-cell":
         if self.table_left is not None and abs(self.table_left -  int(attrib["left"])) <= 1:
-          if model == "V3s" and text.strip() == "":
-            text = ""
-            self.finish_this_table()
-            return
-          else:
             print("], [") # next row  
         if text.strip().startswith("Register Name: "):
           rname = text.strip().replace("Register Name: ", "")
