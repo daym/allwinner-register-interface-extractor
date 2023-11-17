@@ -5,7 +5,10 @@ import re
 import sys
 from logging import debug, info, warning, error, critical
 import logging
-logging.basicConfig(level=logging.INFO)
+import coloredlogs
+
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='DEBUG', fmt = '%(levelname)s: %(message)s')
 
 from lxml import etree
 from typing import NamedTuple, List
@@ -786,7 +789,7 @@ def parse_Register(rspec, field_word_count = 1):
                 max_bit = int(max_bit.strip())
                 min_bit = int(min_bit.strip())
             except ValueError:
-                warning("{!r}: Invalid field {!r}: Bitrange error".format(register_name, register_field))
+                error("{!r}: Invalid field {!r}: Bitrange error".format(register_name, register_field))
                 continue
             if max_bit < min_bit: # bug
               if max_bit == 15 and min_bit == 18: # reg HCCPARAMS in A64
@@ -806,7 +809,7 @@ def parse_Register(rspec, field_word_count = 1):
                 max_bit = int(max_bit.strip())
                 min_bit = int(min_bit.strip())
             except ValueError:
-                warning("{!r}: Invalid field {!r}: Bitrange error".format(register_name, register_field))
+                error("{!r}: Invalid field {!r}: Bitrange error".format(register_name, register_field))
                 continue
         default_part = default_part.strip().rstrip(".")
         default_part = default_part.split("(")[0] # strip description
@@ -822,7 +825,7 @@ def parse_Register(rspec, field_word_count = 1):
                       default_mask |= (2**(max_bit - min_bit + 1) - 1) << min_bit
                       default_value |= default_part << min_bit
                   else:
-                      warning("{!r}: Default {} for field {!r} does not fit into slot with bitrange {}:{}".format(register_name, default_part, register_field, max_bit, min_bit))
+                      error("{!r}: Default {} for field {!r} does not fit into slot with bitrange {}:{}".format(register_name, default_part, register_field, max_bit, min_bit))
                 except ValueError:
                   warning("{!r}: Default {!r} for field {!r} was not understood".format(register_name, default_part, register_field))
             except (NameError, SyntaxError):
@@ -840,7 +843,7 @@ def parse_Register(rspec, field_word_count = 1):
                 return parse_Register(rspec, field_word_count = field_word_count + 1)
             else:
                 if description.strip() != "/":
-                  warning("{!r}: Field name could not be determined: {!r} (tried: {!r})".format(register_name, register_field, name))
+                  error("{!r}: Field name could not be determined: {!r} (tried: {!r})".format(register_name, register_field, name))
                 #if register_name.strip().startswith("BUS_SOFT_RST_REG3"):
                 #  import pdb
                 #  pdb.set_trace()
@@ -1287,7 +1290,7 @@ for module in root_dnode.children:
                   common_vars_registers[key][register.name] = []
                   common_vars_registers[key][register.name].append(register_offset)
           except (SyntaxError, NameError, TypeError):
-              warning("Offset is too complicated: {!r}".format(spec))
+              error("Offset is too complicated: {!r}".format(spec))
               import traceback
               traceback.print_exc()
               raise
@@ -1458,7 +1461,7 @@ for module in root_dnode.children:
               if register.name in doneregs:
                   continue
               if register.name not in simplified_offsets:
-                  warning("{!r}: Register {!r} has a too-complicated offset ({!r}). Skipping".format(module.rows, register.name, register.meta[0]))
+                  error("{!r}: Register {!r} has a too-complicated offset ({!r}). Skipping".format(module.rows, register.name, register.meta[0]))
                   continue
               register_offsets = []
               spec = simplified_offsets[register.name]
@@ -1512,7 +1515,7 @@ for module in root_dnode.children:
                          continue
                   dim = len(register_offsets)
                 else:
-                  warning("{!r}: Offset2 is too complicated: {!r}, {!r}".format(register.name, spec, register.meta))
+                  error("{!r}: Offset2 is too complicated: {!r}, {!r}".format(register.name, spec, register.meta))
                   continue
               svd_register = create_register(register, rspec, lowest_register_offset, register_description=descriptions.get(register.name))
               if increment is not None:
@@ -1577,7 +1580,7 @@ for module in root_dnode.children:
         svd_registers.remove(r)
 
   if len(registers_not_in_any_peripheral) > 0:
-    warning("{!r}: Registers not used in any peripheral: {!r}".format(module.rows, sorted(list(registers_not_in_any_peripheral))))
+    debug("{!r}: Registers not used in any peripheral: {!r}".format(module.rows, sorted(list(registers_not_in_any_peripheral))))
 
 sys.stdout.flush()
 et.write(sys.stdout.buffer, pretty_print=True)
