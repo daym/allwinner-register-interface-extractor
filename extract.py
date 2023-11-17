@@ -149,11 +149,16 @@ class State(object):
     elif model == "V3s":    
       if rname == "DA16CALI_DATA" and self.offset == "0x17": #V3s
           rname = "BIAS16CALI_DATA"
+      if rname == "DA16CALI_SET" and self.offset == "0x18": #V3s
+          rname = "BIAS16CALI_SET"    
       elif rname == "HSIC_STATUS" and self.offset == "0x824": #V3s
           rname = "HSIC_PHY_STATUS"
-    elif model in ["V3s", "H3"]:
+    if model in ["V3s", "H3"]:
       if rname == "SD_CTRL" and self.offset == "0x0044": #V3s H3
           rname = "SD_FUNS"                     
+    if model == "H3":
+      if rname == "PG_EINT_CFG":
+        rname = "PG_EINT_CFG3_REG"                              
     return rname
 
   def start_table(self, rname):
@@ -228,6 +233,10 @@ class State(object):
           self.finish_this_table()
           self.start_table(rname)
           if model == "V3s":
+            if rname == "CE_KEY[n]" and self.offset =="0x 0 4+4*n ":
+               self.offset = "0x04+4*n "
+            if rname == "CE_CNT[n]" and self.offset =="0x 3 4+4*n ":
+               self.offset = "0x34+4*n "   
             if rname == "AC_PR_CFG" and not self.offset: #V3s missing or wrong formatted offsets
               self.offset = '0x400'
             if rname == "CE_CTL" and self.offset == '0x  ':
@@ -272,6 +281,34 @@ class State(object):
         attrib["meaning"] = "table-cell"
       if (self.in_table == "Module List" and self.h4 == "CMAP module " and text == "+" ):
         attrib["meaning"] = "table-cell"
+      if self.in_table == "PF_PULL0_REG" and text.startswith("0x5140"):
+        text = "0x0"
+      if self.in_table == "VDD_RTC_REG" and text.startswith("0x100"):
+         text = "0x4"
+    if self.in_table and self.in_table == "PORTSC":
+      if "(WKDSCNNT_E)" in text:
+        text = "WKDSCNNT_E"
+      elif "(WKCNNT_E)" in text:
+        text = "WKCNNT_E"
+    if self.in_table and self.in_table == "SMHC_THLD_REG" and text.strip().startswith("BCIG(for SMHC2 only)"):
+       text = "BCIG"    
+    if self.in_table and self.in_table == "USBCMD" and text.strip().replace("  ", " ").startswith("R/W or"):
+       attrib["meaning"] = "garbage" 
+    if self.in_table and self.in_table in ["BUS_SOFT_RST_REG3", "BUS_CLK_GATING_REG2"] and text.strip().startswith("I2S/PCM "):
+       text = text.replace("I2S/PCM ", "I2S_PCM_") 
+    if self.in_table and self.in_table in ["TCON0_GINT0_REG","TCON_GINT0_REG"] and text.startswith("26: "):
+       text = "26"
+    if self.in_table and self.in_table == "TSC_PPARR" and text == "31:":
+       text = "31:8"  
+    if self.in_table and self.in_table == "PG_EINT_CFG3_REG":
+       if text == "_REG":
+          attrib["meaning"] = "garbage"     
+    if self.in_table == "I2S/PCM 0_CLK_REG" and text.startswith("00: PLL_AUDIO (8X) "):
+       text = "00: PLL_AUDIO(8X) " 
+    if self.in_table == "CE_CTR" and text == "DIE_ID ":
+       attrib["meaning"] = "garbage"   
+    if self.in_table in ["NDFC_ERR_CNT1", "NDFC_ERR_CNT2"] and text.endswith("COR_NUM "):
+       text = "ECC_COR_NUM"                
     if self.in_table and attrib["meaning"] == "note":
       if int(attrib["left"]) < self.table_column_lefts[-1]:
         self.finish_this_table()
@@ -459,6 +496,43 @@ class State(object):
               self.in_module = "TCON0"
             elif text.strip() == "TCON1":
               self.in_module = "TCON1"
+            if text.replace("  ", " ").strip() == "0x0040+N*0x20 IRQ Enable For User N(N=0,1)":
+              print("{!r} ,".format("0x0040+N*0x20"))
+              text = "IRQ Enable For User N(N=0,1)"
+            elif text.replace("  ", " ").strip() == "0x0050+N*0x20 IRQ Status For User N(N=0,1)":
+              print("{!r} ,".format("0x0050+N*0x20"))
+              text = "IRQ Enable For User N(N=0,1)"  
+            elif text.replace("  ", " ").strip() == "0x100+N*0x4 Spinlock Lock Register N (N=0~31)":
+              print("{!r} ,".format("0x100+N*0x4"))   
+              text = "Spinlock Lock Register N (N=0~31)"
+          elif self.in_table in ["AC_ADC_DAP_OPT", "AC_DAPOPT"]:
+            text = text.replace("setting(include", "setting (include")  
+          elif self.in_table == "HMIC_CTRL":
+            if text in ["00: disable"]:
+                text = text.replace("00", "0")
+            elif text in ["11: enable"]:
+                text = text.replace("11", "1")
+          elif self.in_table == "APT_REG" and text.strip() == "0x10":
+             text = "0x2"
+          elif self.in_table in ["HP_CAL_CTRL", "MDET_CTRL", "PHIN_CTRL"] and text.strip() == "100":
+             text = "0x4" 
+          elif self.in_table in ["PHIN_CTRL", "PHOUT_CTRL"] and text.strip() == "011":
+             text = "0x3"
+          elif self.in_table in ["VDD_RTC_REG"] and text.strip() == "0x100":
+             text = "0x4"   
+          elif self.in_table == "SRC_BISTCR" and "SRC1 and SRC2" in text:
+             text = text.replace("SRC1 and SRC2", "")
+          elif self.in_table == "AC_ADC_DAPNTH" and text.strip().endswith("(-90dB)"):
+             text = text.replace("(-90dB)", "")
+          elif self.in_table in ["PH_EINT_CTL_REG", "PH_EINT_STATUS_REG"]:
+            if text.startswith("(n=0~11)  R/W "):
+             print("{!r} ,".format("(n=0~11)"))
+             text = "R/W "   
+          elif self.in_table == "NDFC_TIMING_CFG" and text == "11 ":
+             print("{!r},\r{!r},".format(text, "R/W")) 
+             text = "0 "
+          elif self.in_table == "USBSTS" and text.endswith("(USBERRINT) ") or text.endswith("(USBINT) "):
+             text = text.replace("(USBINT) ","").replace("(USBERRINT) ","")    
           print("{!r}, ".format(text))
       elif attrib["meaning"] == "h4" and self.in_table and not self.in_table_header and len(self.table_columns) >= 3 and self.in_column_P(int(attrib['left']), len(self.table_columns) - 1):
         # This can be a repeated table column header--in which case we don't care--or a bolded field name--which we very much want. Distinguish those.
