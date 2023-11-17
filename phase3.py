@@ -659,7 +659,7 @@ def field_name_from_description(description, field_word_count):
                q = q.split(":")[0]
            words = q.replace(" is set by hardware to ", " ").replace(" by HC to ", " to ").replace(" to point to ", " to ").replace(" to enable or disable ", " ").replace(" to enable/disable ", " ").replace(" by HCD ", " ").replace(" when HC ", " ").replace(" is set by an OS HCD ", " ").replace(" is set by HCD ", " ").replace(" is set by HC ", " ").replace(" content of ", " ").replace("hyscale en", "hyscale_en").split("\n", 1)[0].split()
            stripped = False
-           while len(words) > 0 and (words[0] in ["This", "field", "bit", "set", "indicate", "specify", "describes", "determines", "used", "there", "any", "the", "a", "an", "value", "which", "loaded", "into", "The", "the", "that", "byte", "implemented", "incremented", "immediately", "initiated", "Each"] or words[0] in connectives):
+           while len(words) > 0 and (words[0] in ["This", "field", "bit", "set", "indicate", "specify", "describes", "determines", "used", "there", "any", "the", "a", "an", "value", "which", "loaded", "into", "The", "the", "that", "byte", "implemented", "incremented", "immediately", "initiated", "Each"] or words[0].lower() in connectives):
               del words[0]
               stripped = True
            if words[0:2] == ["address", "of"]:
@@ -674,8 +674,10 @@ def field_name_from_description(description, field_word_count):
               del words[0]
            q = words[0:field_word_count]
            r = words[field_word_count:]
+           if len(q) and q[-1].lower() in connectives:
+              del q[-1]
            #connective_count = 0
-           if len(r) > 0 and not matched_field_name_good and (r[0] in connectives or r[0].lower() in nouns) and field_word_count < 6:
+           if len(r) > 0 and not matched_field_name_good and (r[0].lower() in connectives or r[0].lower() in nouns) and field_word_count < 5: #dont fuckup last try
                return "", False, False, description
            #    q.append(r[0])
            #    del r[0]
@@ -854,7 +856,10 @@ def parse_Register(rspec, field_word_count = 1):
         name = "_{}".format(name)
         if any(name.endswith("_{}".format(x.upper())) for x in connectives): # field name cannot end in a connective
           # we assume there will be more words following on the next call of parse_Register
-          name = ""
+          if field_word_count > 4: #just strip trailing connective and leave other
+             name = "_".join(name.split("_")[:-1])[1:]
+          else:
+             name = ""
         else:
           name = name[1:]
         if name:
