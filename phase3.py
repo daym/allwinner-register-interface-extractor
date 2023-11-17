@@ -766,18 +766,38 @@ def parse_Register(rspec, field_word_count = 1):
                  register_field[k + 1] = range_row[k + 1]
            for description in range_row[1:]:
             if len(description.strip()) > 3:
-              register_field[-1] += description
+              register_field[-1] += description.strip()
+           register_field[-1] = register_field[-1].strip()   
            register_fields[i + 1] = []              
            for j in loop_indices:
             eval_env[loop_var] = loop_indices[-1] - j
+            max = eval(max_bit, eval_env)
+            min = eval(min_bit, eval_env)
             if max_bit == min_bit:
-              register_field[0] = "{}".format(eval(max_bit, eval_env))
+              register_field[0] = "{}".format(max)
             else:
-              register_field[0] = "{}:{}".format(eval(max_bit, eval_env), eval(min_bit, eval_env))
-            register_fields_expanded.append(register_field) 
+              register_field[0] = "{}:{}".format(max, min)
+            register_fields_expanded += [register_field.copy()] 
+            name = register_fields_expanded[-1][-1].split()[0] + "_" + str(loop_indices[-1] - j)
+            register_fields_expanded[-1][-1] = name + " " + " ".join(register_fields_expanded[-1][-1].split()[1:])
+            default_part = register_fields_expanded[-1][2]
+            try:
+              if default_part.lower().find("x") == 1:
+                default_part = int(default_part, 16)
+              else:
+                default_part = int(default_part, 2)
+            except:
+               default_part = 0
+            if default_part:       
+              maxfit = 2**(max - min + 1) - 1   
+              if default_part > maxfit:
+                #treat default as for the entire register
+                default_part >>= min
+                default_part &= maxfit
+                register_fields_expanded[-1][2] = hex(default_part) 
         else:
-           register_fields_expanded.append(register_field)       
-    register_fields = register_fields_expanded
+           register_fields_expanded += [register_field.copy()]
+    rspec[-1][:] = register_fields_expanded[:]
     for register_field in register_fields:   
         if register_header == ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']:
             # FIXME: Provide access_method parameter and choose which ACCESS to use
@@ -900,9 +920,13 @@ re_direct_range = re.compile(r"\s*(0x[0-9A-Fa-f]+)\s*[~–]\s*(0x[0-9A-Fa-f]+)\s
 re_spaced_hex = re.compile(r"(0x[0-9A-Fa-f ]+)")
 re_verbose_range = re.compile(r"[(]([NnPx]) from ([0-9]+) to ([0-9]+)[)]")
 
-re_i_semicolon = re.compile(r"\s*[[]([0-9i\+]+)\s*:\s*([0-9i\+]+)\s*[]]") #[4i+3:4i] etc
+re_i_colon = re.compile(r"\s*[[]([0-9i\+]+)\s*:\s*([0-9i\+]+)\s*[]]") #[4i+3:4i] etc
 re_i_group = re.compile(r"([0-9]+)(i)")
-re_i_range = re.compile(r"[[].*(i{1,}).*[]]")
+re_i_range = re.compile(r"[[].*([in]{1,}).*[]]")
+re_first_word = re.compile(r"(?:^|(?:[.!?]\s))(\w+)")
+re_fname_w_brackets = re.compile(r"[\w]{1,}[(][\w]+[)]")
+re_rsvd = re.compile(r"(reserved)+")
+re_camel_case = re.compile(r"(?<!^)(?=[A-Z])")
 
 def parse_exp_field(formula):
     formula = formula.replace("[","").replace("]","")
@@ -1235,16 +1259,15 @@ for module in root_dnode.children:
                   description = parse_Offset1(description)
                   nN_match = re_n_range.search(description)
                 if not nN_match and "n" in spec.split(" ")[1]:
-                  try: # Try to get bitfield expand formula from description field. V3s
+                  try: # Try to get range from description field. V3s
                     description = register.bits[0][2]
                     before_part = spec
                     description = parse_Offset1(description)
                     nN_match = re_n_range.search(description)
-                    if nN_match: #store in meta for futher processing
-                       register.meta[0] += " " + nN_match.string[nN_match.string.find("("):nN_match.string.find(")") + 1]
                   except:
                     pass  
                 if nN_match:
+                  register.meta[0] += " " + nN_match.string[nN_match.string.find("("):nN_match.string.find(")") + 1]
                   _, loop_var, loop_indices, after_part = re_n_range.split(description, maxsplit=1)
               if nN_match:
                   #warning("{!r}: range match".format(register.name))
