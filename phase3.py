@@ -12,6 +12,7 @@ coloredlogs.install(level='DEBUG', fmt = '%(levelname)s: %(message)s')
 
 from lxml import etree
 from typing import NamedTuple, List
+from inflection import underscore
 
 import phase2_result
 from pprint import pprint
@@ -641,13 +642,25 @@ def field_name_from_description(description, field_word_count):
         matched_field_name_good = False
         guessed = False
         if description:
-           description = description.replace("_ ", "_") # "TF_ DRQ_EN"
+           description = description.replace("_ ", "_").replace("  ", " ").replace("(OPTIONAL)","") # "TF_ DRQ_EN"
            #if description.find("DRQ_EN") != -1:
            #  import pdb
            #  pdb.set_trace()
-           q = description.split(". ")[0].split(",")[0]
+           q = description.split(" ")[0] #try to find something like BulkCurrentED[31:4]
+           if re_i_colon.search(q):
+              q = q.replace("[","_").replace(":", "_").replace("]", "").upper()
+           elif re_fname_w_brackets.search(q): #try to find something like SAMPLE_TIMING_PHASE(RX)
+              q = q.replace("(","_").replace(")", "").upper()
+           elif q.lower().startswith("(read)") and "(write)" in description.lower(): #something like (read)PortEnableStatus ... (write)SetPortEnable
+              q = "R_" + underscore(q.split(")")[1]).upper() + "_W_" + underscore(description[description.lower().find("(write)"):].split(" ")[0].split(")")[1]).upper()   
+           elif q.find("(") > 8: #CARD_WR_THLD_ENB(for SMHC2 only)
+              q = q[:q.find("(")]
+           else:
+              q = description.split(". ")[0].split(",")[0]
            if field_word_count == 1 or field_word_count == 6:
                m = re_field_name_good.match("{} ".format(q))
+               if not m and len(q.split(" ")[0]) > 8: #try to re-match long CamelCase
+                  m = re_field_name_good.match("{} ".format(underscore(q.split(" ")[0]).upper()))
                if m: # FOO_BAR
                    matched_field_name_good = True
                    q = m.group(1)
@@ -692,6 +705,7 @@ def field_name_from_description(description, field_word_count):
            name = name.rstrip(".").rstrip(",").rstrip(":").rstrip()
            name = name.replace("(Read)", "(read)")
            name = name.replace("[POTPGT]", "") # redundant, and would cause it to fail.
+           name = name.replace("-", "_")
            m = re_name_read.match(name)
            if m: # "(read)A" vs "(write)B"
              name = "{}_R".format(m.group(1))
