@@ -909,6 +909,8 @@ def parse_Register(rspec, field_word_count = 1):
                 return parse_Register(rspec, field_word_count = field_word_count + 1)
             else:
                 warning("{!r}: Field names are not all known; for example the one described by: {!r}".format(register_name, description))
+    if register_name == "PLL_MIPI_PAT_CTRL_REG":
+       del bits[0] #A64 repeated bit field
     field_names = [name for _, name, _, _ in bits]
     if len(set(field_names)) != len(field_names):
         if field_word_count < 6:
