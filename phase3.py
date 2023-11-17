@@ -869,7 +869,7 @@ def parse_Register(rspec, field_word_count = 1):
                 import traceback
         guessed = False
         name, matched_field_name_good, guessed, description = field_name_from_description(description, field_word_count)
-        if name.lower().strip() in ["reserved", "revered"] or name.lower().strip().startswith("reserved") or name.strip() == "/": # sic
+        if name.lower().strip() in ["reserved", "revered"] or name.lower().strip().startswith("reserved") or name.strip() == "/" or description.strip() == "/": # sic
             continue
         elif re_name.match(name):
             pass
@@ -878,7 +878,8 @@ def parse_Register(rspec, field_word_count = 1):
             if field_word_count < 6:
                 return parse_Register(rspec, field_word_count = field_word_count + 1)
             else:
-                if description.strip() != "/":
+                row = (access + str(default_part) + description).strip()
+                if description.strip() != "/" and row != '' and not re_rsvd.search(row.lower()):
                   error("{!r}: Field name could not be determined: {!r} (tried: {!r})".format(register_name, register_field, name))
                 #if register_name.strip().startswith("BUS_SOFT_RST_REG3"):
                 #  import pdb
