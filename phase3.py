@@ -1354,7 +1354,23 @@ for module in root_dnode.children:
             visible_registers.add(register.name)
       for msg in added:
         info(msg)
+  def workaround_unsummarized_ac_registers():
+    if module_name == "AC": 
+      added = set() 
+      try:
+        visible_registers = filters["AC"]
+        hidden_registers = filters["ANALOG DOMAIN REGISTER"]
+      except:
+         return  
+      for register in registers:
+        if register.name not in visible_registers and register.name not in hidden_registers:
+          # Note: We could extend this here to find the summary OFFSET that has the same offset as the REGISTER.
+          added.add("{!r}: Automatically adding register {!r} even though it's not mentioned in the summary (note: this is working around a bug in the PDF)".format(peripherals, register.name))
+          visible_registers.add(register.name)
+      for msg in added:
+        info(msg)
   workaround_unsummarized_registers()
+  workaround_unsummarized_ac_registers() 
 
   for x_module_name, x_module_baseAddress, *rest in peripherals:
     x_module_name = x_module_name.strip()
