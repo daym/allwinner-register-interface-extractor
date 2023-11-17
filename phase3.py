@@ -912,7 +912,27 @@ def parse_Register(rspec, field_word_count = 1):
     if register_name == "PLL_MIPI_PAT_CTRL_REG":
        del bits[0] #A64 repeated bit field
     field_names = [name for _, name, _, _ in bits]
+    #try to fix
     if len(set(field_names)) != len(field_names):
+      if register_name in ["AC_ADC_DRC_CTRL","AC_DAC_DRC_CTRL","AC_DRC0_CTRL", "AC_DRC1_CTRL"] :
+         #cant guess names correctly due to lot of connectivies
+         field_names = ['DRC_DELAY_BUFFER_DATA_OUTPUT_STATE', 'SIGNAL_DELAY_TIME', 'DELAY_BUFFER_USE_OR_NOT', 'DRC_GAIN_MAX_LIMIT_EN', 'DRC_GAIN_MIN_LIMIT_EN', 'NOISE_DETECT', 'SIGNAL_FUNCTION_SELECT', 'DELAY_FUNCTION_ENABLE', 'DRC_LT_ENABLE', 'DRC_ET_ENABLE']
+      if register_name == "AC_DRC0_OPT":
+         field_names[-1] = "DRC_GAIN_DEFAULT_VAL"
+         field_names[-2] = "DRC_DATA_OUTPUT_STATE"
+      if register_name == "ADC_DIG_CTRL":
+         field_names[-4] = "DORS_SELECT"   
+      elif register_name == "HCI_ICR":
+         field_names = ['DMA_TRANSFER_STATUS_EN', 'OHCI_COUNT_SEL', 'SIMULATION_MODE', 'EHCI_HS_FORCE', 'HSIC_CONNECT_DETECT', 'HSIC_CONNECT_INT_EN', 'PP2VBUS', 'AHB_INCR16_EN', 'AHB_INCR8_EN', 'AHB_INCR4_EN', 'AHB_INCRX_ALIGN_EN', 'HSIC_PHY_SEL', 'ULPI_BYPASS_EN']
+      else:
+       seen = set()
+       for i, name in enumerate(field_names):
+            if name in seen:
+              if (name == "ADAP_LCHAN_GAIN"):
+                  field_names[i] = "ADAP_RCHAN_GAIN"  
+            else:
+              seen.add(name)
+    if len(set(field_names)) != len(field_names):      
         if field_word_count < 6:
             return parse_Register(rspec, field_word_count = field_word_count + 1)
         else:
