@@ -248,6 +248,9 @@ class State(object):
         .replace("—", "-").replace("≤", "<=").replace("³", " ").replace("①", "1.") \
         .replace("②", "2.").replace("¼", "25%").replace("½", "50%")
     if model == "V3s":
+      if attrib["meaning"] == "table-cell" and text.lower().startswith("analog domain register"): #V3s
+         attrib["meaning"] = "h4"
+         xx = {"b"}
       if self.in_table and self.in_table == "AC_ROMIXSC" and text.startswith("MIXMUTE "): #V3s
         text = "RMIXMUTE "
       if self.in_table and self.in_table == "CSI0_CLK_REG" and text == "000":
