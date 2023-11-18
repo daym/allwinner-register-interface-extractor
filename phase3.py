@@ -922,7 +922,7 @@ def parse_Register(rspec, field_word_count = 1):
          field_names[-2] = "DRC_DATA_OUTPUT_STATE"
       if register_name == "ADC_DIG_CTRL":
          field_names[-4] = "DORS_SELECT"   
-      elif register_name == "HCI_ICR":
+      elif register_name == "HCI_ICR" and __model == "V3s":
          field_names = ['DMA_TRANSFER_STATUS_EN', 'OHCI_COUNT_SEL', 'SIMULATION_MODE', 'EHCI_HS_FORCE', 'HSIC_CONNECT_DETECT', 'HSIC_CONNECT_INT_EN', 'PP2VBUS', 'AHB_INCR16_EN', 'AHB_INCR8_EN', 'AHB_INCR4_EN', 'AHB_INCRX_ALIGN_EN', 'HSIC_PHY_SEL', 'ULPI_BYPASS_EN']
       else:
        seen = set()
@@ -932,6 +932,8 @@ def parse_Register(rspec, field_word_count = 1):
                   field_names[i] = "ADAP_RCHAN_GAIN"  
             else:
               seen.add(name)
+      for i, name in enumerate(field_names):
+         bits[i] = (bits[i][0], name, bits[i][2], bits[i][3])        
     if len(set(field_names)) != len(field_names):      
         if field_word_count < 6:
             return parse_Register(rspec, field_word_count = field_word_count + 1)
