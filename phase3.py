@@ -135,7 +135,7 @@ def clean_table(module, header, body, name):
     if len(row) != len(suffix):
       if len(row) == 0:
         continue
-      warning("Table formatting in PDF is unknown: header={!r}, row={!r}".format(header, row))
+      error("Table formatting in PDF is unknown: header={!r}, row={!r}".format(header, row))
   return module, header, body
 
 def unroll_Module(module):
@@ -642,7 +642,7 @@ def field_name_from_description(description, field_word_count):
         matched_field_name_good = False
         guessed = False
         if description:
-           description = description.replace("_ ", "_").replace("  ", " ").replace("(OPTIONAL)","") # "TF_ DRQ_EN"
+           description = description.replace("_ ", "_").replace("  ", " ").replace("(OPTIONAL)","").replace("Setting(include", "Setting (include")
            #if description.find("DRQ_EN") != -1:
            #  import pdb
            #  pdb.set_trace()
@@ -914,6 +914,11 @@ def parse_Register(rspec, field_word_count = 1):
     field_names = [name for _, name, _, _ in bits]
     #try to fix
     if len(set(field_names)) != len(field_names):
+      if "NDFC_ERR_CNT" in register_name and field_names[0] == "ECC_COR_NUM" or \
+          register_name == "NDFC_PAT_ID" and field_names[0] == "PAT_ID": #H5 
+         k = len(field_names) - 1
+         for i, _ in enumerate(field_names):
+            field_names[i] += str(k - i)
       if register_name in ["AC_ADC_DRC_CTRL","AC_DAC_DRC_CTRL","AC_DRC0_CTRL", "AC_DRC1_CTRL"] :
          #cant guess names correctly due to lot of connectivies
          field_names = ['DRC_DELAY_BUFFER_DATA_OUTPUT_STATE', 'SIGNAL_DELAY_TIME', 'DELAY_BUFFER_USE_OR_NOT', 'DRC_GAIN_MAX_LIMIT_EN', 'DRC_GAIN_MIN_LIMIT_EN', 'NOISE_DETECT', 'SIGNAL_FUNCTION_SELECT', 'DELAY_FUNCTION_ENABLE', 'DRC_LT_ENABLE', 'DRC_ET_ENABLE']
@@ -938,7 +943,7 @@ def parse_Register(rspec, field_word_count = 1):
         if field_word_count < 6:
             return parse_Register(rspec, field_word_count = field_word_count + 1)
         else:
-            warning("{!r}: Field names are not unique: {!r}".format(register_name, field_names))
+            error("{!r}: Field names are not unique: {!r}".format(register_name, field_names))
 
     #print("REG {!r}".format(register_name))
     for ((max_bit, min_bit), name, description, access) in bits:

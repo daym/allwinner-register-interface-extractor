@@ -44,6 +44,16 @@ fontspec_to_meaning = [
 
   #H3
   ({'color': '#000000', 'family': 'Calibri', 'opacity': '0.298039', 'size': '106'}, "garbage"),
+
+  #H5
+  ({'color': "#0f0f00", 'family': 'TMRLMS+Calibri,Bold', 'size': '21'}, "h3"),
+  ({'color': "#000000", 'family': 'TMRLMS+Calibri,Bold', 'size': '27'}, "h2"),
+  ({'color': "#000000", 'family': 'TMRLMS+Calibri,Bold', 'size': '15'}, "h4"),
+  ({'color': "#000000", 'family': 'ESYINA+Calibri', 'size': '15'}, "table-cell"),
+  ({'color': "#0000ff", 'family': 'TMRLMS+Calibri,Bold', 'size': '15'}, "table-cell"),
+  ({'color': "#000000", 'family': 'CRTXUU+Calibri', 'size': '15'}, "table-cell"),
+  ({'color': "#000000", 'family': 'EHFMCY+Calibri,Italic', 'size': '15'}, "table-cell"),
+  ({'color': "#000000", 'family': 'TMRLMS+Calibri,Bold', 'size': '36'}, "h2")
 ]
 
 def hashable_fontspec(d):
@@ -90,6 +100,10 @@ class State(object):
         rname = rname.split("_")[1:]
         rname.insert(0, self.in_module)
         rname = "_".join(rname)     
+    if h4.startswith("TSC Port Output Multiplex Control Register") and rname == "TSC_TSFMUXR": #H5
+       rname = "TSC_OUTMUXR"    
+    if h4.startswith("CSI Channel_0 Horizontal Size Register") and rname == "CSI0_C0_INT_STA_REG": #H5
+       rname = "CSI0_C0_HSIZE_REG"
     if rname == "HcPeriodCurrentED(PCED)": # R40
         rname = "HcPeriodCurrentED" # FIXME
     rname = rname.replace("_C0~3", "") # in R40 # FIXME
@@ -204,6 +218,11 @@ class State(object):
     #  print(attrib)
     #  import pdb
     #  pdb.set_trace()
+    if  self.h4 and "SPC Configuration Table" in self.h4:
+      if self.h4 and attrib["meaning"] != 'h3': #H5 skip non-register table
+       return
+      else:
+       self.h4 = '' 
     if self.in_register_name_multipart: # A64. It has "Register Name: <b>Foo</b>"
       if text.strip() in ["TVD_3D_CTL5", "TVD_HLOCK3", "TVD_ENHANCE2"]:
         # Work around misplaced "<b>" in "Register Name; xxx <b></b>" in "D1-H_User Manual_V1.2.pdf"
@@ -246,7 +265,7 @@ class State(object):
     text = text.replace("…", "...").replace("......", "...").replace("‘", "`") \
         .replace("’", "`").replace("“", "`").replace("”", "`").replace("–", "-") \
         .replace("—", "-").replace("≤", "<=").replace("³", " ").replace("①", "1.") \
-        .replace("②", "2.").replace("¼", "25%").replace("½", "50%")
+        .replace("②", "2.").replace("¼", "25%").replace("½", "50%").replace("⃝",",")
     if model == "V3s":
       if attrib["meaning"] == "table-cell" and text.lower().startswith("analog domain register"): #V3s
          attrib["meaning"] = "h4"
@@ -289,7 +308,10 @@ class State(object):
     if self.in_table and self.in_table == "SMHC_THLD_REG" and text.strip().startswith("BCIG(for SMHC2 only)"):
        text = "BCIG"    
     if self.in_table and self.in_table == "USBCMD" and text.strip().replace("  ", " ").startswith("R/W or"):
-       attrib["meaning"] = "garbage" 
+       if model == "H5":
+          text = "R/W"
+       else:
+          attrib["meaning"] = "garbage" 
     if self.in_table and self.in_table in ["BUS_SOFT_RST_REG3", "BUS_CLK_GATING_REG2"] and text.strip().startswith("I2S/PCM "):
        text = text.replace("I2S/PCM ", "I2S_PCM_") 
     if self.in_table and self.in_table in ["TCON0_GINT0_REG","TCON_GINT0_REG"] and text.startswith("26: "):
@@ -439,7 +461,10 @@ class State(object):
         assert int(attrib["left"]) >= self.table_left, (self.in_table, text, self.page_number)
         if int(attrib["left"]) == self.table_left:
           warning("ignored h4 of {!r} in table {!r} since it's most likely a typo".format(text, self.in_table))
-          attrib["meaning"] = "table-cell"
+          if model == "H5":
+            attrib["meaning"] = "garbage" #TSC on page 663
+          else:
+            attrib["meaning"] = "table-cell"
           xx = {}
       if attrib["meaning"] == "h4" and xx == {"b"}:
         if len(self.table_columns) == 0:
@@ -478,7 +503,7 @@ class State(object):
           pass
         elif self.in_table != "CPU Architecture" and self.table_left is not None and int(attrib["left"]) < self.table_left:
           self.finish_this_table()
-        elif model == "H3" and self.in_table == "Module List" and text.startswith("AC_PR_CFG"):
+        elif model in ["H3", "H5"] and self.in_table == "Module List" and text.startswith("AC_PR_CFG"):
           print("{!r}, \r'0x2DE9C0', \r'AC Parameter Configuration Register', ".format(text))
           self.finish_this_table()
         else:
@@ -496,6 +521,24 @@ class State(object):
             elif text.replace("  ", " ").strip() == "0x100+N*0x4 Spinlock Lock Register N (N=0~31)":
               print("{!r} ,".format("0x100+N*0x4"))   
               text = "Spinlock Lock Register N (N=0~31)"
+            elif text == "0x0110+N*0x04  TCON CEU Coefficient Register0(N=0,1,2,4,5,6,8,9,10) ":
+               print("{!r} ,".format("0x0110+N*0x04"))
+               text = "TCON CEU Coefficient Register0(N=0,1,2,4,5,6,8,9,10)"
+            elif text == "0x011C+N*0x10  TCON CEU Coefficient Register1(N=0,1,2) ":
+               print("{!r} ,".format("0x011C+N*0x10"))
+               text = "TCON CEU Coefficient Register1(N=0,1,2)"
+            elif text == "0x0140+N*0x04  TCON CEU Coefficient Register2(N=0,1,2) ":
+               print("{!r} ,".format("0x0140+N*0x04"))
+               text = "TCON CEU Coefficient Register2(N=0,1,2)" 
+            elif text == "0x0304+N*0x0C  TCON1 Fill Data Begin Register(N=0,1,2) ":
+               print("{!r} ,".format("0x0304+N*0x0C"))
+               text = "TCON1 Fill Data Begin Register(N=0,1,2)" 
+            elif text == "0x0308+N*0x0C  TCON1 Fill Data End Register(N=0,1,2) ":
+               print("{!r} ,".format("0x0308+N*0x0C"))
+               text = "TCON1 Fill Data End Register(N=0,1,2)" 
+            elif text == "0x030C+N*0x0C  TCON1 Fill Data Value Register(N=0,1,2) ":
+               print("{!r} ,".format("0x030C+N*0x0C"))
+               text = "TCON1 Fill Data Value Register(N=0,1,2)" 
           elif self.in_table in ["AC_ADC_DAP_OPT", "AC_DAPOPT"]:
             text = text.replace("setting(include", "setting (include")  
           elif self.in_table == "HMIC_CTRL":
@@ -511,6 +554,8 @@ class State(object):
              text = "0x3"
           elif self.in_table in ["VDD_RTC_REG"] and text.strip() == "0x100":
              text = "0x4"   
+          elif self.in_table in ["OWA_FSTA"] and text.strip() == "0x80": #H5
+             text = "0x20"      
           elif self.in_table == "SRC_BISTCR" and "SRC1 and SRC2" in text:
              text = text.replace("SRC1 and SRC2", "")
           elif self.in_table == "AC_ADC_DAPNTH" and text.strip().endswith("(-90dB)"):
