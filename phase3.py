@@ -133,7 +133,9 @@ def clean_table(module, header, body, name):
       row[len(row) - 2] = row[len(row) - 2] + sep + s
       del row[len(row) - 1]
     if len(row) != len(suffix):
-      if len(row) == 0:
+      if len(row) == 0 or row[-1].lower().find("reserved") != -1:
+        if len(row):
+          warning("Skipping don't care row: header={!r}, row={!r}".format(header, row))
         continue
       error("Table formatting in PDF is unknown: header={!r}, row={!r}".format(header, row))
   return module, header, body
@@ -642,7 +644,7 @@ def field_name_from_description(description, field_word_count):
         matched_field_name_good = False
         guessed = False
         if description:
-           description = description.replace("_ ", "_").replace("  ", " ").replace("(OPTIONAL)","").replace("Setting(include", "Setting (include")
+           description = description.replace("_ ", "_").replace("  ", " ").replace("(OPTIONAL)","").replace("Setting(include", "Setting (include").replace("(USBERRINT)","").replace("(USBINT)","").replace("BM_n(n=0~31)", "BM").replace("CHANNEL_DATA_INV[bit9:0 ]","CHANNEL_DATA_INV")
            #if description.find("DRQ_EN") != -1:
            #  import pdb
            #  pdb.set_trace()
@@ -714,7 +716,7 @@ def field_name_from_description(description, field_word_count):
              name = "{}_W".format(m.group(1))
            name = name.upper()
            #print("NAME", name, file=sys.stderr)
-           if not re_name.match(name):
+           if not re_name.match(name) and field_word_count < 6:
              name = ""
            m = re_a_of_the_b.match(name)
            if m:
@@ -871,7 +873,7 @@ def parse_Register(rspec, field_word_count = 1):
         name, matched_field_name_good, guessed, description = field_name_from_description(description, field_word_count)
         if name.lower().strip() in ["reserved", "revered"] or name.lower().strip().startswith("reserved") or name.strip() == "/" or description.strip() == "/": # sic
             continue
-        elif re_name.match(name):
+        elif re_name.match(name) or field_word_count == 6:
             pass
         elif not name or name.strip() == "/" or re_definitely_not_name.match(name) or name.lower().strip() in ["one", "remote", "00b", "writes", "per-port", "power", "that", "end", "no", "causing", "is", "1:", "32k", "0x0", "0x1", "upsample", "en", "of", "at", "implemented"]:
             #warning("{!r}: Field name could not be determined: {!r} (tried: {!r}".format(register_name, register_field, name))
@@ -912,8 +914,8 @@ def parse_Register(rspec, field_word_count = 1):
     if register_name == "PLL_MIPI_PAT_CTRL_REG":
        del bits[0] #A64 repeated bit field
     field_names = [name for _, name, _, _ in bits]
-    #try to fix
     if len(set(field_names)) != len(field_names):
+      #try to fix
       if "NDFC_ERR_CNT" in register_name and field_names[0] == "ECC_COR_NUM" or \
           register_name == "NDFC_PAT_ID" and field_names[0] == "PAT_ID": #H5 
          k = len(field_names) - 1
@@ -927,8 +929,15 @@ def parse_Register(rspec, field_word_count = 1):
          field_names[-2] = "DRC_DATA_OUTPUT_STATE"
       if register_name == "ADC_DIG_CTRL":
          field_names[-4] = "DORS_SELECT"   
-      elif register_name == "HCI_ICR" and __model == "V3s":
+      elif __model == "V3s" and register_name == "HCI_ICR":
          field_names = ['DMA_TRANSFER_STATUS_EN', 'OHCI_COUNT_SEL', 'SIMULATION_MODE', 'EHCI_HS_FORCE', 'HSIC_CONNECT_DETECT', 'HSIC_CONNECT_INT_EN', 'PP2VBUS', 'AHB_INCR16_EN', 'AHB_INCR8_EN', 'AHB_INCR4_EN', 'AHB_INCRX_ALIGN_EN', 'HSIC_PHY_SEL', 'ULPI_BYPASS_EN']
+      elif __model == "H6":
+        if register_name in ["NDFC_DATA_BLOCK_MASK", "NDFC_DATA_PAT_STA", "NDFC_ECC_ST", "CE_ESR"]:
+         for i, _ in enumerate(field_names):
+            field_names[i] = field_names[i] + "_" + str(len(field_names) - i - 1)
+        elif register_name == "SPI_BATC":
+           field_names[4] = "RX_BURST_LEN"
+           field_names[5] = "TX_BURST_LEN"   
       else:
        seen = set()
        for i, name in enumerate(field_names):
@@ -958,15 +967,15 @@ re_N_unicode_range = re.compile(r"[(]([NnPx])\s*=\s*([0-9])+\s*–\s*([0-9]+)[)]
 re_N_to = re.compile(r"[(]N\s*=\s*([0-9]+) to ([0-9]+)[)]")
 re_n_lt = re.compile(r"[(]([0-9]+)<n<([0-9]+)[)]")
 re_n_le_lt = re.compile(r"[(]([0-9]+)≤n<([0-9]+)[)]")
-re_nN_tilde = re.compile(r"[(]([NnPxi])\s*=\s*([0-9]+)~([0-9]+)[)]")
-re_n_range = re.compile(r"[(]([NnPxi])\s*=\s*([0-9, ]+)[)]")
+re_nN_tilde = re.compile(r"[(]([NnPximM])\s*=\s*([0-9]+)~([0-9]+)[)]")
+re_n_range = re.compile(r"[(]([NnPximM])\s*=\s*([0-9, ]+)[)]")
 re_direct_range = re.compile(r"\s*(0x[0-9A-Fa-f]+)\s*[~–]\s*(0x[0-9A-Fa-f]+)\s*$")
 re_spaced_hex = re.compile(r"(0x[0-9A-Fa-f ]+)")
 re_verbose_range = re.compile(r"[(]([NnPx]) from ([0-9]+) to ([0-9]+)[)]")
 
 re_i_colon = re.compile(r"\s*[[]([0-9i\+]+)\s*:\s*([0-9i\+]+)\s*[]]") #[4i+3:4i] etc
-re_i_group = re.compile(r"([0-9]+)(i)")
-re_i_range = re.compile(r"[[].*([in]{1,}).*[]]")
+re_i_group = re.compile(r"([0-9]+)([iM])")
+re_i_range = re.compile(r"[[].*([inM]{1,}).*[]]")
 re_first_word = re.compile(r"(?:^|(?:[.!?]\s))(\w+)")
 re_fname_w_brackets = re.compile(r"[\w]{1,}[(][\w]+[)]")
 re_rsvd = re.compile(r"(reserved)+")
@@ -1020,13 +1029,23 @@ def register_summary_instances_guess(offsetspec, part, module):
     spec = parse_Offset1(offsetspec)
     nN_match = re_n_range.search(spec)
     if nN_match:
-        before_part, loop_var, loop_indices, after_part = re_n_range.split(spec)
-        loop_indices = list(map(int, loop_indices.split(",")))
-        for i in loop_indices:
-            offset = eval(before_part, {loop_var: i})
-            yield offset
+       try:
+          before_part, loop_var, loop_indices, after_part = re_n_range.split(spec)
+          loop_indices = list(map(int, loop_indices.split(",")))
+          for i in loop_indices:
+              offset = eval(before_part, {loop_var: i})
+              yield offset          
+       except:
+          before_part, loop_var, loop_indices, _, loop_var1, loop_indices1, __ = re_n_range.split(spec)
+          loop_indices = list(map(int, loop_indices.split(",")))
+          loop_indices1 = list(map(int, loop_indices1.split(",")))
+          offset = []
+          for i in loop_indices:
+              for j in loop_indices1:
+                 offset = eval(before_part, {loop_var: i, loop_var1: j})
+                 yield offset           
     else:
-        if offsetspec.find("Reserved") == -1:
+        if offsetspec.find("Reserved") == -1 and offsetspec.strip() != "/" and offsetspec.strip():
             # Guess; TODO: Check suffix on description ("(x:1~7)") instead.
             eval_env = {"N": 0, "n": 0, "P": 0, "x": 0, part: 0}
             for module_name, module_baseAddress in unroll_Module(module):
@@ -1340,16 +1359,28 @@ for module in root_dnode.children:
                   # Note: can contain N, n
                   for N in loop_indices:
                       eval_env[loop_var] = N
-                      if qloop_var is not None: # second loop variable (P)
-                          assert qloop_var == "P" and loop_var == "N" # just in case
-                          eval_env[qloop_var] = 1 # P index will be handled later
-                          qregister_offset = eval(spec[len("Offset:"):].strip(), eval_env)
-                          eval_env[qloop_var] = 0 # P index will be handled later
-                          register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
-                          # Hardcoded at another spot, too.
-                          assert qregister_offset - register_offset == 4, (register_offset, qregister_offset)
-                      register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
-                      common_vars_registers[key][register.name].append(register_offset)
+                      if qloop_var is not None: # second loop variable
+                          if qloop_var == "P" and loop_var == "N": # just in case   
+                            eval_env[qloop_var] = 1 # P index will be handled later
+                            qregister_offset = eval(spec[len("Offset:"):].strip(), eval_env)
+                            eval_env[qloop_var] = 0 # P index will be handled later
+                            register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
+                            # Hardcoded at another spot, too.
+                            assert qregister_offset - register_offset == 4, (register_offset, qregister_offset)
+                            register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
+                            common_vars_registers[key][register.name].append(register_offset)
+                          else:
+                            assert qloop_var == "m" and loop_var == "n"
+                            for M in qloop_indices:
+                               eval_env[qloop_var] = M
+                               register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
+                               common_vars_registers[key][register.name].append(register_offset)                             
+                      else:
+                         register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
+                         common_vars_registers[key][register.name].append(register_offset)
+                  pass
+                  if len(key) > 1 and key[1][0] == 'm':
+                     common_vars_registers[tuple([tuple([loop_var, tuple(loop_indices)])])] = common_vars_registers.pop(key)
               else:
                   key = None
                   assert register.name not in common_vars_registers[key]
@@ -1452,7 +1483,7 @@ for module in root_dnode.children:
     try:
       x_module_baseAddress = eval(x_module_baseAddress, eval_env)
     except (ValueError, SyntaxError, NameError):
-      warning("FIXME IMPLEMENT {}".format(x_module_name))
+      error("FIXME IMPLEMENT {}".format(x_module_name))
       continue
     svd_peripheral = create_peripheral(x_module_name, x_module_baseAddress, access="read-write", description=None, groupName=None) # TODO: groupName ??
     svd_peripherals.append(svd_peripheral)
@@ -1567,13 +1598,23 @@ for module in root_dnode.children:
                 nN_match = re_n_range.search(spec)
                 register_offsets = []
                 if nN_match:
-                  spec, loop_var, loop_indices, after_part = re_n_range.split(spec)
+                  loop1_indices = []
+                  try:
+                    spec, loop_var, loop_indices, after_part = re_n_range.split(spec)
+                  except:
+                    spec, loop_var, loop_indices, _, loop1_var, loop1_indices, after_part = re_n_range.split(spec)  
+                    loop1_indices = list(map(int, loop1_indices.split(","))) 
                   loop_indices = list(map(int, loop_indices.split(",")))
                   for N in loop_indices:
-                    eval_env["N"] = N
-                    eval_env["n"] = N
-                    register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
-                    register_offsets.append(register_offset)
+                    eval_env[loop_var] = N
+                    if loop1_indices:
+                      for M in loop1_indices:
+                         eval_env[loop1_var] = M
+                         register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
+                         register_offsets.append(register_offset)   
+                    else:
+                       register_offset = eval(spec[len("Offset:"):].strip(), eval_env)
+                       register_offsets.append(register_offset)
                   register_offsets = list(sorted(register_offsets))
                   lowest_register_offset = register_offsets[0]
                   increments = calculate_increments(register_offsets)
@@ -1592,7 +1633,12 @@ for module in root_dnode.children:
                          primary_rspec = rspec
                          svd_register = create_register(register, rspec, lowest_register_offset, register_description=descriptions.get(register.name))
                          svd_cluster.append(svd_register)
-                         assert len(register_offsets) == len(loop_indices), register.name
+                         if loop1_indices:
+                            assert loop_indices[0] == 0
+                            indices = []
+                            for i in range(len(loop_indices) * len(loop1_indices)):
+                               indices.append(i)
+                            loop_indices = indices
                          for register_offset, N in list(zip(register_offsets, loop_indices))[1:]:
                              rspec = "{}_{}".format(register.name, N)
                              svd_cluster.append(create_register_reference(rspec, register_offset, primary_rspec))
@@ -1671,5 +1717,6 @@ for module in root_dnode.children:
     debug("{!r}: Registers not used in any peripheral: {!r}".format(module.rows, sorted(list(registers_not_in_any_peripheral))))
 
 sys.stdout.flush()
+sys.stdout.buffer.write("<?xml version=\"1.0\" encoding=\"utf-8\"?>\r".encode("UTF-8"))
 et.write(sys.stdout.buffer, pretty_print=True)
 sys.stdout.flush()

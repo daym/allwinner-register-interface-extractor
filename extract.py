@@ -100,12 +100,12 @@ class State(object):
         rname = rname.split("_")[1:]
         rname.insert(0, self.in_module)
         rname = "_".join(rname)     
-    if h4.startswith("TSC Port Output Multiplex Control Register") and rname == "TSC_TSFMUXR": #H5
-       rname = "TSC_OUTMUXR"    
     if h4.startswith("CSI Channel_0 Horizontal Size Register") and rname == "CSI0_C0_INT_STA_REG": #H5
        rname = "CSI0_C0_HSIZE_REG"
-    if rname == "HcPeriodCurrentED(PCED)": # R40
+    elif rname == "HcPeriodCurrentED(PCED)": # R40
         rname = "HcPeriodCurrentED" # FIXME
+    elif h4.startswith("DMA IRQ Enable Register1") and rname == "DMA_IRQ_EN_REG0" and self.offset == "0x0004":
+       rname = 'DMA_IRQ_EN_REG1'    
     rname = rname.replace("_C0~3", "") # in R40 # FIXME
     if rname == "LOMIXSC" and self.offset == "0x02": # Bug in R40: Uses the same register name twice for different offsets
         rname = "ROMIXSC"
@@ -125,8 +125,6 @@ class State(object):
         rname = "TCON1_BASIC5_REG"
     elif h4 == "OHCI Control Register" and rname == "HcRevision" and self.offset == "0x0404": # R40
         rname = "HcControl"
-    elif h4 == "TSC Port Output Multiplex Control Register" and rname == "TSC_TSFMUXR" and self.offset == "0x0028": # R40
-        rname = "TSC_OUTMUXR"
     elif h4 == "0x41C ADC DAP Left Low Average Coef Register" and rname == "AC_ADC_DAPLHAC" and self.offset == "0x41C": # A64
         rname = "AC_ADC_DAPLLAC"
     elif h4 == "0x434 ADC DAP Right Attack Time Register" and rname == "AC_ADC_DAPRDT" and self.offset == "0x434": # A64
@@ -152,12 +150,11 @@ class State(object):
         self.offset = "0x0014" # OOPS!
     elif h4 == "0x0028 THS Alarm Off Interrupt Status Register" and rname == "THS_ALARM_INTS" and self.offset == "0x0028": # D1
         rname = "THS_ALARM0_INTS"
-    elif h4 == "TSC Status Register" and rname == "TSC_TSFMUXR" and self.offset == "0x20":
-        pass
-    elif rname == "TSC_TSFMUXR" and self.offset == "0x28": # h4 wrong; A64
+    elif rname == "TSC_TSFMUXR":
+      if self.offset.startswith("0x") and int(self.offset, 16) == 0x28 or self.offset == "TSC+0x28": # R40 H3 H5
         rname = "TSC_OUTMUXR"
-    elif rname == "TSC_TSFMUXR" and self.offset == "TSG+0x00": # h4 wrong; A64
-        rname = "TSG_CTLR"
+      elif self.offset == "TSG+0x00": #H3 H5
+        rname = "TSG_CTLR"    
     elif h4 == "Crypt Enable Register" and rname == "CRY_CONFIG_REG" and self.offset == "0x218": # A64
         rname = "CRY_ENABLE_REG"
     elif h4 == "PWM Control Register" and rname == "PWM_CTR_REG" and self.offset == "0x0060+N*0x20(N= 0~7)": # R40
@@ -177,6 +174,36 @@ class State(object):
     if model == "H3":
       if rname == "PG_EINT_CFG":
         rname = "PG_EINT_CFG3_REG"                              
+    if model == "H6":
+       	  if rname == 'SMHC_CTRL' and self.offset == "0x0044":
+              rname = "SMHC_FUNS"      
+          if rname.startswith("PIO_POW_"):
+            if int(self.page_number) < 450:
+              rname = rname.replace("PIO_POW_","PIO_X_POW_")
+            else:
+              rname = rname.replace("PIO_POW_","PIO_S_POW_")
+          elif rname == "TV_DATA_IO_POL_REG":
+             if self.offset.strip() == "0x330":
+                rname = "TV_DATA_IO_POL0_REG"
+             elif self.offset.strip() == "0x334":
+                rname = "TV_DATA_IO_POL1_REG"
+          elif rname == "ADD_ TV_IO_TRI_REG":
+             if self.offset.strip() == "0x338":
+                rname = "TV_DATA_IO_TRI0_REG"
+             elif self.offset.strip() == "0x33C":
+                rname = "TV_DATA_IO_TRI1_REG" 
+          elif rname == "I2S/PCM_TXCHMAP":
+             if self.offset.strip() == "0x0044":
+                rname = "I2S/PCM_TXCHMAP0" 
+             elif self.offset.strip() == "0x0048":
+                rname = "I2S/PCM_TXCHMAP1" 
+          elif rname == "NDFC_NDMA_MODE_CTL" and self.offset.strip() == "0x0088":
+             rname = "SPI_NDMA_MODE_CTL"         
+          elif rname == "HcRevision" and self.offset.strip() == "0x0404":
+             rname = "HcControl" 
+          elif rname == "OW_SMSC" and self.offset.strip() == "0x0020":
+             rname = "SM_WR_RD_TCTL"         
+                              
     return rname
 
   def start_table(self, rname):
@@ -300,11 +327,51 @@ class State(object):
         text = "0x0"
       if self.in_table == "VDD_RTC_REG" and text.startswith("0x100"):
          text = "0x4"
+    elif model == "H6": 
+      if self.in_table == "AUDIO_HUB_BGR_REG" and text.strip().startswith("AUDIO_HUB _"):
+        text = text.replace("AUDIO_HUB _", "AUDIO_HUB_")
+      elif self.h4 and self.h4 == 'SMHC Auto Command 12 Argument Register (Default Value: 0x0000_FFFF) ' and \
+        text.strip() != "SMHC EMCE Control Register (Default Value: 0x0200_0000)": #H6 drop duplicated table
+        return
+      elif self.h4 and self.h4 == 'TV Encoder Burst Frequency 0 Register(Default Value:0x7C1F) ' and \
+        text.strip() != "TV Encoder Burst Frequency 1 Register(Default Value:0x21F0)": #H6 drop duplicated table
+        return
+      elif self.h4 and self.h4 == "HCI Controller and PHY Interface Register":
+        if text == "HCI ":
+            text = "'HCI SIE Port Diable Control"
+        elif text in ["SIE ", "Port ", "Disable ", "Control "]: #H6 fix splitted regname
+          return
+      elif text == "Audio Codec " and attrib["meaning"] == "h2":
+        self.in_module = text
+      elif self.in_module and self.in_module == "Audio Codec ":
+        if text != "TWI ":
+            return
+        else:
+            self.in_module = ""   
+      elif text == "ATE(Audio Codec, TVE, EPHY) controller ":
+        self.in_module = text
+        return
+      elif self.in_module and self.in_module == "ATE(Audio Codec, TVE, EPHY) controller ": 
+        if text != "Port Controller(CPUX-PORT) ":
+            return #H6 drop indirectly accessed ATE controller
+        else:
+            self.in_module = ""
+      elif self.in_table == "NDFC_ERR_CNT_N":
+        if text == "[8M+7: ":
+          text = "[8M+7:8M]"
+        elif text == "8M] ":
+          return
+      elif self.in_table == "NDFC_PAT_ID" and text.strip() == "n":
+          text = "[n] "
+      elif self.in_table and self.in_table.startswith("SMHC_") and text == "   ":
+         return                   
     if self.in_table and self.in_table == "PORTSC":
       if "(WKDSCNNT_E)" in text:
         text = "WKDSCNNT_E"
       elif "(WKCNNT_E)" in text:
         text = "WKCNNT_E"
+    if self.in_table and self.in_table == "DCXO_CTRL_REG" and text == "U ":
+       text = "R/W "
     if self.in_table and self.in_table == "SMHC_THLD_REG" and text.strip().startswith("BCIG(for SMHC2 only)"):
        text = "BCIG"    
     if self.in_table and self.in_table == "USBCMD" and text.strip().replace("  ", " ").startswith("R/W or"):
@@ -318,6 +385,8 @@ class State(object):
        text = "26"
     if self.in_table and self.in_table == "TSC_PPARR" and text == "31:":
        text = "31:8"  
+    if self.in_table and self.in_table == "ADC_MIC_CTRL" and text.strip() == "5:4":
+       text = "6:4 "     
     if self.in_table and self.in_table == "PG_EINT_CFG3_REG":
        if text == "_REG":
           attrib["meaning"] = "garbage"     
@@ -327,7 +396,7 @@ class State(object):
        attrib["meaning"] = "garbage"   
     if self.in_table in ["NDFC_ERR_CNT1", "NDFC_ERR_CNT2"] and text.endswith("COR_NUM "):
        text = "ECC_COR_NUM"                
-    if self.in_table and attrib["meaning"] == "note":
+    if self.in_table and attrib["meaning"] == "note" or text.startswith("Read operation process: "):
       if int(attrib["left"]) < self.table_column_lefts[-1]:
         self.finish_this_table()
       else:
@@ -371,16 +440,18 @@ class State(object):
           print("'Item'], [[")
     if attrib["meaning"] == "h2" and xx == {"b"}:
       self.finish_this_table()
-    if attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Offset:"):
+    if (attrib["meaning"] == "h4" and xx == {"b"} or attrib["meaning"] == "table-cell") and text.strip().startswith("Offset:"):
       self.in_offset = True
-      self.offset = text.strip().replace("Offset:", "").strip() # FIXME: append
-      # TODO: It could have parts between "Offset:" and "Register Name:"
-      return
-    elif attrib["meaning"] == "table-cell" and text.strip().startswith("Offset:"): # A64
-      self.in_offset = True
-      self.offset = text.strip().replace("Offset:", "").strip() # FIXME: append
-      # TODO: It could have parts between "Offset:" and "Register Name:"
-      return
+      text = text.replace("n = 0~ 2","n = 0~2")
+      text = text.replace("Offset:", "")
+      r = text.find("Register Name:") #H6 sometimes have offset and regname in one string
+      if r == -1:
+         self.offset = text.strip() # FIXME: append
+         return
+      else:
+         self.offset = text[:r].strip()   
+         self.in_offset = False
+         text = text[r:].strip()    
     elif attrib["meaning"] == "h4" and xx == {"b"} and text.strip().startswith("Address:"): # R40
       self.in_offset = True
       self.offset = text.strip().replace("Address:", "").strip() # FIXME: append
@@ -455,14 +526,15 @@ class State(object):
            #else:
            #  self.in_table_header = False
            #  print("], [[")
-
+      elif text == "Default /Hex ":
+         text = "Default/Hex "
       if attrib["meaning"] == "h4" and len(self.table_columns) > 0:
         assert len(self.table_columns) > 0, (self.in_table, text)
         assert int(attrib["left"]) >= self.table_left, (self.in_table, text, self.page_number)
         if int(attrib["left"]) == self.table_left:
           warning("ignored h4 of {!r} in table {!r} since it's most likely a typo".format(text, self.in_table))
-          if model == "H5":
-            attrib["meaning"] = "garbage" #TSC on page 663
+          if model in ["H5", "H6"]:
+            attrib["meaning"] = "garbage" # H5: TSC on page 663 H6: EHCI Capability Register on page 831 
           else:
             attrib["meaning"] = "table-cell"
           xx = {}
@@ -539,6 +611,20 @@ class State(object):
             elif text == "0x030C+N*0x0C  TCON1 Fill Data Value Register(N=0,1,2) ":
                print("{!r} ,".format("0x030C+N*0x0C"))
                text = "TCON1 Fill Data Value Register(N=0,1,2)" 
+            elif text == "0x0150-0x01CC  Embedded Encrypt and Decrypt Bitmap Register n(n:0~31) ":
+               print("{!r} ,".format("0x0150"))
+               text = "Embedded Encrypt and Decrypt Bitmap Register n(n:0~31) "     
+            elif text.endswith("+n*0x0100+m*0x0010 "): #H6
+               text += "(n=0~3)(m=0~3) "
+            elif text == "(n=0~3)(m=0~3) ":
+               return
+            elif model == "H6":
+              if attrib["left"] == str(self.table_left) and len(text.split()) > 1 and text.split()[1].startswith("0x") and len(text.split()[1]) == 6:
+               #if reg name is long it sometimes joined with offset
+               print("{!r} ,".format(text.split()[0]))
+               text = text.split()[1]
+              elif text.strip().startswith("0x0") and len(text.strip().split(" ")) == 2 and len(text.strip().split(" ")[0]) == 6 and len(text.strip().split(" ")[1]) == 4:
+                 text = "".join(text.split(" ")) #something like 0x0501 0000                                              
           elif self.in_table in ["AC_ADC_DAP_OPT", "AC_DAPOPT"]:
             text = text.replace("setting(include", "setting (include")  
           elif self.in_table == "HMIC_CTRL":
@@ -567,6 +653,20 @@ class State(object):
           elif self.in_table == "NDFC_TIMING_CFG" and text == "11 ":
              print("{!r},\r{!r},".format(text, "R/W")) 
              text = "0 "
+          elif self.in_table == "PLL_CPUX_CTRL_REG" and text == "23:18  / ":
+             print("{!r} ,".format("23:18 "))
+             text = "/ "   
+          elif model == "H6":
+            if self.in_table == "HSIC PHY tune3 Register" and text.strip().startswith("HSIC BIST_"):
+                print("'R' ,\r'0',")
+                text = text.replace("HSIC BIST_", "HSIC_BIST_")
+            elif self.in_table == "LCD_GINT0_REG" and text.strip().startswith("26:"):
+               text = "26 "
+            elif self.in_table.endswith("_NDMA_MODE_CTL"):
+              if text.strip() == "0x11":
+                text = "0x3 "
+              elif self.page_number == "799" and text.startswith("0: active fall do not care ack"):
+                 print("'DMA_ACK_EN',")                                             
           elif self.in_table == "USBSTS" and text.endswith("(USBERRINT) ") or text.endswith("(USBINT) "):
              text = text.replace("(USBINT) ","").replace("(USBERRINT) ","")    
           print("{!r}, ".format(text))
