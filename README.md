@@ -3,6 +3,7 @@
 Extract register descriptions from Allwinner user manual to SVD.
 
 Tested with:
+* H616_User_Manual_V1.0_cleaned.pdf (sha256sum: 4ca95572826a1d98b687ae74c1bb2f62597b70f5aafa20d698c4ed6792b20e05)
 * Allwinner_H6_V200_User_Manual_V1.1.pdf (sha256sum: 338f2b96dee05692f77a541076bcf2de3e7ce9f5d103db467643ca760fc7356c)
 * Allwinner_H5_Manual_v1.0.pdf (sha256sum: 00ba91b3aa77dec90dca187d9d6a2d5f1d16634979b0d1cdeda3655e0977ef19)
 * Allwinner_H3_Datasheet_V1.2.pdf (sha256sum: 95447916442c88f791226fcc6062adac7d62597138413637efa06a7e8c877d2b)

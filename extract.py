@@ -53,7 +53,10 @@ fontspec_to_meaning = [
   ({'color': "#0000ff", 'family': 'TMRLMS+Calibri,Bold', 'size': '15'}, "table-cell"),
   ({'color': "#000000", 'family': 'CRTXUU+Calibri', 'size': '15'}, "table-cell"),
   ({'color': "#000000", 'family': 'EHFMCY+Calibri,Italic', 'size': '15'}, "table-cell"),
-  ({'color': "#000000", 'family': 'TMRLMS+Calibri,Bold', 'size': '36'}, "h2")
+  ({'color': "#000000", 'family': 'TMRLMS+Calibri,Bold', 'size': '36'}, "h2"),
+
+  #H616
+  ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '32'}, "h0"),
 ]
 
 def hashable_fontspec(d):
@@ -171,10 +174,15 @@ class State(object):
     if model in ["V3s", "H3"]:
       if rname == "SD_CTRL" and self.offset == "0x0044": #V3s H3
           rname = "SD_FUNS"                     
-    if model == "H3":
+    elif model == "H3":
       if rname == "PG_EINT_CFG":
         rname = "PG_EINT_CFG3_REG"                              
-    if model == "H6":
+    elif model in ["H6", "H616"]:
+      if rname == "NDFC_NDMA_MODE_CTL" and self.offset.strip() == "0x0088":
+        rname = "SPI_NDMA_MODE_CTL"  
+      elif rname == "HcRevision" and self.offset.strip() == "0x0404":
+          rname = "HcControl"              
+      elif model == "H6":
        	  if rname == 'SMHC_CTRL' and self.offset == "0x0044":
               rname = "SMHC_FUNS"      
           if rname.startswith("PIO_POW_"):
@@ -199,11 +207,13 @@ class State(object):
                 rname = "I2S/PCM_TXCHMAP1" 
           elif rname == "NDFC_NDMA_MODE_CTL" and self.offset.strip() == "0x0088":
              rname = "SPI_NDMA_MODE_CTL"         
-          elif rname == "HcRevision" and self.offset.strip() == "0x0404":
-             rname = "HcControl" 
           elif rname == "OW_SMSC" and self.offset.strip() == "0x0020":
              rname = "SM_WR_RD_TCTL"         
-                              
+      elif model == "H616":
+        if rname == "AC_DAC_DRC_LPFLAT" and self.offset == "0x0118":
+            rname = "AC_DAC_DRC_RPFLAT"
+        elif rname == "24M_27M_CLK_OUTPUT_REG":
+           rname = "_24M_27M_CLK_OUTPUT_REG"   
     return rname
 
   def start_table(self, rname):
@@ -327,44 +337,55 @@ class State(object):
         text = "0x0"
       if self.in_table == "VDD_RTC_REG" and text.startswith("0x100"):
          text = "0x4"
-    elif model == "H6": 
-      if self.in_table == "AUDIO_HUB_BGR_REG" and text.strip().startswith("AUDIO_HUB _"):
-        text = text.replace("AUDIO_HUB _", "AUDIO_HUB_")
-      elif self.h4 and self.h4 == 'SMHC Auto Command 12 Argument Register (Default Value: 0x0000_FFFF) ' and \
-        text.strip() != "SMHC EMCE Control Register (Default Value: 0x0200_0000)": #H6 drop duplicated table
-        return
-      elif self.h4 and self.h4 == 'TV Encoder Burst Frequency 0 Register(Default Value:0x7C1F) ' and \
-        text.strip() != "TV Encoder Burst Frequency 1 Register(Default Value:0x21F0)": #H6 drop duplicated table
-        return
-      elif self.h4 and self.h4 == "HCI Controller and PHY Interface Register":
-        if text == "HCI ":
-            text = "'HCI SIE Port Diable Control"
-        elif text in ["SIE ", "Port ", "Disable ", "Control "]: #H6 fix splitted regname
-          return
-      elif text == "Audio Codec " and attrib["meaning"] == "h2":
-        self.in_module = text
-      elif self.in_module and self.in_module == "Audio Codec ":
-        if text != "TWI ":
-            return
-        else:
-            self.in_module = ""   
-      elif text == "ATE(Audio Codec, TVE, EPHY) controller ":
-        self.in_module = text
-        return
-      elif self.in_module and self.in_module == "ATE(Audio Codec, TVE, EPHY) controller ": 
-        if text != "Port Controller(CPUX-PORT) ":
-            return #H6 drop indirectly accessed ATE controller
-        else:
-            self.in_module = ""
-      elif self.in_table == "NDFC_ERR_CNT_N":
+    elif model in ["H6", "H616"]:
+      if self.in_table == "NDFC_ERR_CNT_N":
         if text == "[8M+7: ":
           text = "[8M+7:8M]"
         elif text == "8M] ":
           return
       elif self.in_table == "NDFC_PAT_ID" and text.strip() == "n":
           text = "[n] "
-      elif self.in_table and self.in_table.startswith("SMHC_") and text == "   ":
-         return                   
+      elif model == "H6": 
+        if self.in_table == "AUDIO_HUB_BGR_REG" and text.strip().startswith("AUDIO_HUB _"):
+          text = text.replace("AUDIO_HUB _", "AUDIO_HUB_")
+        elif self.h4 and self.h4 == 'SMHC Auto Command 12 Argument Register (Default Value: 0x0000_FFFF) ' and \
+          text.strip() != "SMHC EMCE Control Register (Default Value: 0x0200_0000)": #H6 drop duplicated table
+          return
+        elif self.h4 and self.h4 == 'TV Encoder Burst Frequency 0 Register(Default Value:0x7C1F) ' and \
+          text.strip() != "TV Encoder Burst Frequency 1 Register(Default Value:0x21F0)": #H6 drop duplicated table
+          return
+        elif self.h4 and self.h4 == "HCI Controller and PHY Interface Register":
+          if text == "HCI ":
+              text = "'HCI SIE Port Diable Control"
+          elif text in ["SIE ", "Port ", "Disable ", "Control "]: #H6 fix splitted regname
+            return
+        elif text == "Audio Codec " and attrib["meaning"] == "h2":
+          self.in_module = text
+        elif self.in_module and self.in_module == "Audio Codec ":
+          if text != "TWI ":
+              return
+          else:
+              self.in_module = ""   
+        elif text == "ATE(Audio Codec, TVE, EPHY) controller ":
+          self.in_module = text
+          return
+        elif self.in_module and self.in_module == "ATE(Audio Codec, TVE, EPHY) controller ": 
+          if text != "Port Controller(CPUX-PORT) ":
+              return #H6 drop indirectly accessed ATE controller
+          else:
+              self.in_module = ""
+        elif self.in_table and self.in_table.startswith("SMHC_") and text == "   ":
+          return 
+      elif model == "H616":
+         if self.in_table == "NDFC_USER_DATA_LEN_N":
+            if text == "[4M+3":
+               text = "[4M+3:4M]"
+            elif text == ": 4M] ":
+               return
+            elif text == "(M=0~":
+               text = "(M=0~7)"
+            elif text == "7)":
+               return                           
     if self.in_table and self.in_table == "PORTSC":
       if "(WKDSCNNT_E)" in text:
         text = "WKDSCNNT_E"
@@ -528,10 +549,24 @@ class State(object):
            #  print("], [[")
       elif text == "Default /Hex ":
          text = "Default/Hex "
+      elif model == "H616":
+          if text == "Read/Write  Default/Hex  Description ":
+              print ("{!r}, \r{!r}, \r{!r}".format("Read/Write ","Default/Hex ","Description "))
+              print("], [[")
+              self.in_table_header = False
+              return
+          elif text == "Read/Write  Default/Hex ":
+              print ("{!r}, \r{!r},".format("Read/Write ","Default/Hex "))
+              return   
       if attrib["meaning"] == "h4" and len(self.table_columns) > 0:
         assert len(self.table_columns) > 0, (self.in_table, text)
         assert int(attrib["left"]) >= self.table_left, (self.in_table, text, self.page_number)
         if int(attrib["left"]) == self.table_left:
+          if model == "H616" and text == "TVE_TOP ":
+            self.in_table_header = False
+            print("], [['#', {!r}, ".format(text))
+            self.h4 = text # TODO: print it somehow
+            return 
           warning("ignored h4 of {!r} in table {!r} since it's most likely a typo".format(text, self.in_table))
           if model in ["H5", "H6"]:
             attrib["meaning"] = "garbage" # H5: TSC on page 663 H6: EHCI Capability Register on page 831 
@@ -618,13 +653,25 @@ class State(object):
                text += "(n=0~3)(m=0~3) "
             elif text == "(n=0~3)(m=0~3) ":
                return
-            elif model == "H6":
-              if attrib["left"] == str(self.table_left) and len(text.split()) > 1 and text.split()[1].startswith("0x") and len(text.split()[1]) == 6:
-               #if reg name is long it sometimes joined with offset
-               print("{!r} ,".format(text.split()[0]))
-               text = text.split()[1]
-              elif text.strip().startswith("0x0") and len(text.strip().split(" ")) == 2 and len(text.strip().split(" ")[0]) == 6 and len(text.strip().split(" ")[1]) == 4:
-                 text = "".join(text.split(" ")) #something like 0x0501 0000                                              
+            elif model in ["H6", "H616"]:
+                if text.strip().startswith("0x0") and len(text.strip().split(" ")) == 2 and len(text.strip().split(" ")[0]) == 6 and len(text.strip().split(" ")[1]) == 4:
+                  text = "".join(text.split(" ")) #something like 0x0501 0000
+                if model == "H6":
+                  if attrib["left"] == str(self.table_left) and len(text.split()) > 1 and text.split()[1].startswith("0x") and len(text.split()[1]) == 6:
+                  #if reg name is long it sometimes joined with offset
+                    print("{!r} ,".format(text.split()[0]))
+                    text = text.split()[1]
+                elif model == "H616":
+                  if text.find("+0x08*N(N=1~7)  EMAC MAC Address ") != -1:
+                    print ("{!r} ,".format(text.split("  ")[0]))
+                    text = text.split("  ")[1]
+                  elif text == "EMAC1(connected ":
+                    print ("{!r}, \r{!r},".format("EMAC1 ","0x05030000 "))
+                    self.finish_this_table()
+                    return  
+                  elif text.find("+N*0x0C(N=0,1,2)  TV Fill Data") != -1:
+                     print("{!r}, ".format(text.split("  ")[0]))
+                     text = text.split("  ")[1]         
           elif self.in_table in ["AC_ADC_DAP_OPT", "AC_DAPOPT"]:
             text = text.replace("setting(include", "setting (include")  
           elif self.in_table == "HMIC_CTRL":
@@ -656,17 +703,23 @@ class State(object):
           elif self.in_table == "PLL_CPUX_CTRL_REG" and text == "23:18  / ":
              print("{!r} ,".format("23:18 "))
              text = "/ "   
-          elif model == "H6":
-            if self.in_table == "HSIC PHY tune3 Register" and text.strip().startswith("HSIC BIST_"):
-                print("'R' ,\r'0',")
-                text = text.replace("HSIC BIST_", "HSIC_BIST_")
-            elif self.in_table == "LCD_GINT0_REG" and text.strip().startswith("26:"):
-               text = "26 "
-            elif self.in_table.endswith("_NDMA_MODE_CTL"):
-              if text.strip() == "0x11":
-                text = "0x3 "
-              elif self.page_number == "799" and text.startswith("0: active fall do not care ack"):
-                 print("'DMA_ACK_EN',")                                             
+          elif model in ["H6", "H616"]:
+            if self.in_table.endswith("_NDMA_MODE_CTL"):
+                if text.strip() == "0x11":
+                  text = "0x3 "
+                elif self.page_number == "799" and text.startswith("0: active fall do not care ack"):
+                  print("'DMA_ACK_EN',")    
+            elif model == "H6":
+              if self.in_table == "HSIC PHY tune3 Register" and text.strip().startswith("HSIC BIST_"):
+                  print("'R' ,\r'0',")
+                  text = text.replace("HSIC BIST_", "HSIC_BIST_")
+              elif self.in_table == "LCD_GINT0_REG" and text.strip().startswith("26:"):
+                text = "26 "
+            elif model == "H616" and self.in_table == "AC_DAC_DRC_RRMSLAT":
+              if text.startswith("31:11"):
+                  text = "31:16 "
+              elif text.startswith("10:0"):
+                  text = "15:0 "                                                             
           elif self.in_table == "USBSTS" and text.endswith("(USBERRINT) ") or text.endswith("(USBINT) "):
              text = text.replace("(USBINT) ","").replace("(USBERRINT) ","")    
           print("{!r}, ".format(text))
