@@ -644,6 +644,8 @@ def field_name_from_description(description, field_word_count):
         matched_field_name_good = False
         guessed = False
         if description:
+           if description.startswith("1: within 2us of the resume-K to SE0 transition"):
+              description = "RESUME_K_STRATEGY " + description
            description = description.replace("_ ", "_").replace("  ", " ").replace("(OPTIONAL)","").replace("Setting(include", "Setting (include").replace("(USBERRINT)","").replace("(USBINT)","").replace("BM_n(n=0~31)", "BM").replace("CHANNEL_DATA_INV[bit9:0 ]","CHANNEL_DATA_INV")
            #if description.find("DRQ_EN") != -1:
            #  import pdb
@@ -654,6 +656,8 @@ def field_name_from_description(description, field_word_count):
            elif re_fname_w_brackets.search(q): #try to find something like SAMPLE_TIMING_PHASE(RX)
               q = q.replace("(","_").replace(")", "").upper()
            elif q.lower().startswith("(read)") and "(write)" in description.lower(): #something like (read)PortEnableStatus ... (write)SetPortEnable
+              description = description.replace("(read) ", "(read)").replace("(write) ", "(write)")
+              q = description.split(" ")[0]
               q = "R_" + underscore(q.split(")")[1]).upper() + "_W_" + underscore(description[description.lower().find("(write)"):].split(" ")[0].split(")")[1]).upper()   
            elif q.find("(") > 8: #CARD_WR_THLD_ENB(for SMHC2 only)
               q = q[:q.find("(")]
@@ -815,6 +819,8 @@ def parse_Register(rspec, field_word_count = 1):
            register_fields_expanded += [register_field.copy()]
     rspec[-1][:] = register_fields_expanded[:]
     for register_field in register_fields:   
+        if not any(True for x in register_field if x.strip()):
+           continue #skip completely empty field
         if register_header == ['Bit', 'Read/Write HCD', 'Read/Write HC', 'Default/Hex', 'Description']:
             # FIXME: Provide access_method parameter and choose which ACCESS to use
             bitrange, access, access2, default_part, description = register_field
@@ -917,7 +923,8 @@ def parse_Register(rspec, field_word_count = 1):
     if len(set(field_names)) != len(field_names):
       #try to fix
       if "NDFC_ERR_CNT" in register_name and field_names[0] == "ECC_COR_NUM" or \
-          register_name == "NDFC_PAT_ID" and field_names[0] == "PAT_ID": #H5 
+          register_name == "NDFC_PAT_ID" and field_names[0] == "PAT_ID" or \
+          register_name == "CE_ESR" and field_names[0] == "TASK_CHANNEL_ERROR_TYPE":
          k = len(field_names) - 1
          for i, _ in enumerate(field_names):
             field_names[i] += str(k - i)
@@ -931,13 +938,18 @@ def parse_Register(rspec, field_word_count = 1):
          field_names[-4] = "DORS_SELECT"   
       elif __model == "V3s" and register_name == "HCI_ICR":
          field_names = ['DMA_TRANSFER_STATUS_EN', 'OHCI_COUNT_SEL', 'SIMULATION_MODE', 'EHCI_HS_FORCE', 'HSIC_CONNECT_DETECT', 'HSIC_CONNECT_INT_EN', 'PP2VBUS', 'AHB_INCR16_EN', 'AHB_INCR8_EN', 'AHB_INCR4_EN', 'AHB_INCRX_ALIGN_EN', 'HSIC_PHY_SEL', 'ULPI_BYPASS_EN']
-      elif __model == "H6":
-        if register_name in ["NDFC_DATA_BLOCK_MASK", "NDFC_DATA_PAT_STA", "NDFC_ECC_ST", "CE_ESR"]:
-         for i, _ in enumerate(field_names):
-            field_names[i] = field_names[i] + "_" + str(len(field_names) - i - 1)
-        elif register_name == "SPI_BATC":
-           field_names[4] = "RX_BURST_LEN"
-           field_names[5] = "TX_BURST_LEN"   
+      elif __model in ["H6", "H616"]:
+        if register_name == "SPI_BATC":               
+          field_names[4] = "RX_BURST_LEN"
+          field_names[5] = "TX_BURST_LEN"
+        elif register_name in ["NDFC_DATA_BLOCK_MASK", "NDFC_DATA_PAT_STA", "NDFC_ECC_ST", "CE_ESR"]:
+          for i, _ in enumerate(field_names):
+              field_names[i] = field_names[i] + "_" + str(len(field_names) - i - 1)  
+        elif __model == "H616":
+          if register_name == "USB_CTRL":
+              field_names = ['DMA_TRANSFER_STATUS_EN', 'OHCI_COUNT_SEL', 'SIMULATION_MODE', 'EHCI_HS_FORCE', 'RESUME_K_STRATEGY', 'PP2VBUS', 'AHB_INCR16_EN', 'AHB_INCR8_EN', 'AHB_INCR4_EN', 'AHB_INCRX_ALIGN_EN', 'RC16M_CLK_EN', 'ULPI_BYPASS_EN'] 
+          elif register_name == "GENER_CTRL_REG1":
+              field_names = ['AXI_TO_MBUS_CLOCK_GATING_DIS','AXI_TO_MBUS_CLOCK_GATING_EN']
       else:
        seen = set()
        for i, name in enumerate(field_names):
