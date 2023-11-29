@@ -388,6 +388,8 @@ class State(object):
                text = "(M=0~7)"
             elif text == "7)":
                return                           
+            elif text == "It's used to indicate user data's length of ECC DATA BLOCK[0x08*N+M]. ":
+               print("'ECC_DATA_BLOCK_LEN ',")                         
     if self.in_table and self.in_table == "PORTSC":
       if "(WKDSCNNT_E)" in text:
         text = "WKDSCNNT_E"
@@ -717,7 +719,7 @@ class State(object):
           elif self.in_table == "PLL_CPUX_CTRL_REG" and text == "23:18  / ":
              print("{!r} ,".format("23:18 "))
              text = "/ "   
-          elif self.in_table == "AC_PR_CFG" and text.startswith("ADDA_PR _"):
+          elif self.in_table == "AC_PR_CFG" and (text.startswith("ADDA_PR _") or text.startswith("AC_PR _")):
              text = text.split(" ")[0] + text.split(" ")[1]      
           elif model in ["H6", "H616"]:
             if self.in_table.endswith("_NDMA_MODE_CTL"):
