@@ -1484,8 +1484,20 @@ for module in root_dnode.children:
           visible_registers.add(register.name)
       for msg in added:
         info(msg)
+  def workaround_unsummarized_csi_tcon_registers():
+    if module_name in ["CSI0", "CSI1"] or module_name.startswith("TCON"):
+      added = set() 
+      visible_registers = filters[module_name]  
+      for register in registers:
+        if register.name not in visible_registers:
+          # Note: We could extend this here to find the summary OFFSET that has the same offset as the REGISTER.
+          added.add("{!r}: Automatically adding register {!r} even though it's not mentioned in the summary (note: this is working around a bug in the PDF)".format(peripherals, register.name))
+          visible_registers.add(register.name)
+      for msg in added:
+        info(msg)        
   workaround_unsummarized_registers()
   workaround_unsummarized_ac_registers() 
+  workaround_unsummarized_csi_tcon_registers() 
 
   for x_module_name, x_module_baseAddress, *rest in peripherals:
     x_module_name = x_module_name.strip()
@@ -1586,6 +1598,8 @@ for module in root_dnode.children:
                           svd_register.insert(0, create_element_and_text("dimIncrement", "4")) # TODO: Remove hardcoding
                           svd_register.insert(0, create_element_and_text("dim", str(len(qloop_indices))))
                       svd_loop_cluster.append(svd_register)
+                      if register.name in registers_not_in_any_peripheral:
+                        registers_not_in_any_peripheral.remove(register.name)                      
                       doneregs.add(register.name)
 
           for register in cluster_visible_registers:

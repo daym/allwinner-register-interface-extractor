@@ -164,6 +164,8 @@ class State(object):
         rname = "PWM_CONT_REG" # not counter
     elif h4 == "System Internal 32K Clock Auto Calibration Register" and rname == "INTOSC_CLK_AUTO_CALI_REG" and self.offset == "0x0314": # R40
         rname = "INTOSC_32K_CLK_AUTO_CALI_REG"
+    elif h4 == "CSI1 Channel_0 FIFO 2 Output Buffer-B Address Register" and rname == "CSI1_F2_BUFB_REG" and self.offset == "0x0024":
+       rname = "CSI1_C0_F2_BUFB_REG"
     elif model == "V3s":    
       if rname == "DA16CALI_DATA" and self.offset == "0x17": #V3s
           rname = "BIAS16CALI_DATA"
@@ -417,7 +419,9 @@ class State(object):
        attrib["meaning"] = "garbage"   
     if self.in_table in ["NDFC_ERR_CNT1", "NDFC_ERR_CNT2"] and text.endswith("COR_NUM "):
        text = "ECC_COR_NUM"                
-    if self.in_table and attrib["meaning"] == "note" or text.startswith("Read operation process: "):
+    if self.in_table and attrib["meaning"] == "note" or text.startswith("Read operation process: ") or \
+       self.in_table == "ADDA_PR_CFG_REG" and text == "APB0" or \
+       self.in_table == "MP_OUTPUT_CTL" and text == "Output data mode and output data ports mapping: ":
       if int(attrib["left"]) < self.table_column_lefts[-1]:
         self.finish_this_table()
       else:
@@ -562,13 +566,13 @@ class State(object):
         assert len(self.table_columns) > 0, (self.in_table, text)
         assert int(attrib["left"]) >= self.table_left, (self.in_table, text, self.page_number)
         if int(attrib["left"]) == self.table_left:
-          if model == "H616" and text == "TVE_TOP ":
+          if model in ["H616", "R40"] and text == "TVE_TOP " or model == "R40" and text in ["CSI0 ", "TVD_TOP ", "TSC ", "TCON_TOP "]:
             self.in_table_header = False
             print("], [['#', {!r}, ".format(text))
             self.h4 = text # TODO: print it somehow
             return 
           warning("ignored h4 of {!r} in table {!r} since it's most likely a typo".format(text, self.in_table))
-          if model in ["H5", "H6"]:
+          if model in ["H5", "H6", "R40"]:
             attrib["meaning"] = "garbage" # H5: TSC on page 663 H6: EHCI Capability Register on page 831 
           else:
             attrib["meaning"] = "table-cell"
@@ -671,7 +675,17 @@ class State(object):
                     return  
                   elif text.find("+N*0x0C(N=0,1,2)  TV Fill Data") != -1:
                      print("{!r}, ".format(text.split("  ")[0]))
-                     text = text.split("  ")[1]         
+                     text = text.split("  ")[1]
+            elif model == "R40":
+               if text == "User Data Field Register n (n from 0 to 15) ":
+                  text = "User Data Field Register N (N from 0 to 15) "
+               elif self.h4 in ["CSI0 ", "CSI1 "]:
+                  if text.startswith(self.h4.strip()):
+                    text = text.replace("_C0","").replace("_C1","")
+                  elif (s := text.find("Channel_")) != -1:
+                    text = text[:s + len("Channel_")] + "N" + text[s + len("Channel_") + 1:]  
+               elif text == "TCON0_CPU_WR_REG ":
+                  text = "TCON0_CPU_WRITE_REG "                          
           elif self.in_table in ["AC_ADC_DAP_OPT", "AC_DAPOPT"]:
             text = text.replace("setting(include", "setting (include")  
           elif self.in_table == "HMIC_CTRL":
@@ -703,6 +717,8 @@ class State(object):
           elif self.in_table == "PLL_CPUX_CTRL_REG" and text == "23:18  / ":
              print("{!r} ,".format("23:18 "))
              text = "/ "   
+          elif self.in_table == "AC_PR_CFG" and text.startswith("ADDA_PR _"):
+             text = text.split(" ")[0] + text.split(" ")[1]      
           elif model in ["H6", "H616"]:
             if self.in_table.endswith("_NDMA_MODE_CTL"):
                 if text.strip() == "0x11":
