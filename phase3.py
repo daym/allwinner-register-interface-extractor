@@ -1485,7 +1485,7 @@ for module in root_dnode.children:
       for msg in added:
         info(msg)
   def workaround_unsummarized_csi_tcon_registers():
-    if module_name in ["CSI0", "CSI1"] or module_name.startswith("TCON"):
+    if len(filters) and (module_name in ["CSI0", "CSI1"] or module_name.startswith("TCON")):
       added = set() 
       visible_registers = filters[module_name]  
       for register in registers:
