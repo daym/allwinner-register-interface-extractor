@@ -57,6 +57,9 @@ fontspec_to_meaning = [
 
   #H616
   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '32'}, "h0"),
+
+  #T113-S3
+   ({'color': '#000000', 'family': 'ABCDEE+Calibri,Bold', 'size': '10'}, "garbage"),
 ]
 
 def hashable_fontspec(d):
@@ -216,6 +219,9 @@ class State(object):
             rname = "AC_DAC_DRC_RPFLAT"
         elif rname == "24M_27M_CLK_OUTPUT_REG":
            rname = "_24M_27M_CLK_OUTPUT_REG"   
+    elif model == "T113-S3":
+       if rname == "F" and self.offset == "0x0084":
+          rname = "FSOUT_CFG"       
     return rname
 
   def start_table(self, rname):
@@ -249,6 +255,8 @@ class State(object):
       #   import pdb
       #   pdb.set_trace()
       assert not self.in_table_header, self.in_table
+      if self.in_module == "CSIC" and len(self.table_columns) > 2:
+         return
       print("]]")
       print()
       self.in_table = False
@@ -390,6 +398,39 @@ class State(object):
                return                           
             elif text == "It's used to indicate user data's length of ECC DATA BLOCK[0x08*N+M]. ":
                print("'ECC_DATA_BLOCK_LEN ',")                         
+    elif model == "H5":
+       if text.lower().startswith("note:") and attrib["meaning"] == "h4":
+          attrib["meaning"] = "table-cell"            
+    elif model == "T113-S3":
+        if self.in_table and self.in_table == "FSOUT_CFG":
+           if text == "CFG ":
+              return
+        text = text.replace("=0-", "=0~").replace("=0 - ","=0~")
+        if self.h4 == '0x002C+ N*0x04 (N=0~3) LCD FRM Table Register (Default Value: 0x0000_0000)   ':
+           if text.startswith("Offset: 0x002C+N*0x04 (N=0"):
+              text = text + "~3)"
+           elif text in ["-", "3) "]:
+              return
+        elif self.in_table == "EMAC_INT_STA":
+            if text == "31:":
+              text = "31:17 "
+            elif text == "15:":
+              text = "15:14 "   
+            elif text in ["17 ", "14 "]:
+              return             
+        elif self.in_module == "CSIC":
+           if text.startswith("PRS_C") and re.search(r'^PRS_C\d', text):
+              text = text.replace("PRS_C", "PRS_CH")
+           elif text == "CSIC_BIST_CONTROL_REG ":
+              text = "CSIC_BIST_CTRL_REG"
+           elif text == "CSIC_BIST_END_REG ":
+              text = "CSIC_BIST_END_ADDR_REG "
+           elif text == "CSIC_BIST_START_REG ":
+              text = "CSIC_BIST_START_ADDR_REG "
+           elif text == "CSIC_DMA_F1_BUFA_RESULT_REG " and int(attrib["top"]) == 404:
+              text = "CSIC_DMA_F2_BUFA_RESULT_REG "
+           elif text == "PRS_NCSIC_IF_CFG_REG ":
+              text = "PRS_NCSI_IF_CFG_REG "   
     if self.in_table and self.in_table == "PORTSC":
       if "(WKDSCNNT_E)" in text:
         text = "WKDSCNNT_E"
@@ -453,6 +494,8 @@ class State(object):
       self.h3 = text
       attrib["meaning"] = "h3"
     if attrib["meaning"] == "h3" and xx == {"b"}: # and text.strip().endswith(" Register Description"):
+      if text == "CCU Register Description   ":
+         self.in_module = ""
       self.finish_this_table()
       if text.strip() == "Register List": # new module starts
         print("Module_List = None")
@@ -555,20 +598,33 @@ class State(object):
            #  print("], [[")
       elif text == "Default /Hex ":
          text = "Default/Hex "
-      elif model == "H616":
-          if text == "Read/Write  Default/Hex  Description ":
-              print ("{!r}, \r{!r}, \r{!r}".format("Read/Write ","Default/Hex ","Description "))
-              print("], [[")
-              self.in_table_header = False
-              return
-          elif text == "Read/Write  Default/Hex ":
-              print ("{!r}, \r{!r},".format("Read/Write ","Default/Hex "))
-              return   
+      elif text.strip() == "Read/Write  Default/Hex  Description":
+          self.table_columns.extend(text.split())
+          self.table_column_lefts.extend([int(attrib["left"]), int(attrib["left"]) + int(len("Read/Write  ") * 7.75), int(attrib["left"]) + int(len("Read/Write  Default/Hex  ") * 7.75)])
+          print ("{!r}, \r{!r}, \r{!r}".format("Read/Write ","Default/Hex ","Description "))
+          print("], [[")
+          self.in_table_header = False
+          return
+      elif text == "Read/Write  Default/Hex ":
+          self.table_columns.extend(text.split())
+          self.table_column_lefts.extend([int(attrib["left"]), int(attrib["left"]) + len("Read/Write  ") * 7.75])
+          print ("{!r}, \r{!r},".format("Read/Write ","Default/Hex "))
+          return  
+      elif text == "Default/Hex  Description ":
+          self.table_columns.extend(text.split())
+          self.table_column_lefts.extend([int(attrib["left"]), int(attrib["left"]) + len("Default/Hex  ")* 7.75])
+          print ("{!r}, \r{!r},".format("Default/Hex ", "Description "))
+          return
+      elif text.strip() == "HCD  HC":
+          self.table_columns.extend(text.split())
+          self.table_column_lefts.extend([int(attrib["left"]), int(attrib["left"]) + len("HCD  ") * 7.75])
+          print ("{!r}, \r{!r},".format("HCD ","HC "))
+          return  
       if attrib["meaning"] == "h4" and len(self.table_columns) > 0:
         assert len(self.table_columns) > 0, (self.in_table, text)
         assert int(attrib["left"]) >= self.table_left, (self.in_table, text, self.page_number)
         if int(attrib["left"]) == self.table_left:
-          if model in ["H616", "R40"] and text == "TVE_TOP " or model == "R40" and text in ["CSI0 ", "TVD_TOP ", "TSC ", "TCON_TOP "]:
+          if model in ["H616", "R40", "T113-S3"] and text == "TVE_TOP " or model == "R40" and text in ["CSI0 ", "TVD_TOP ", "TSC ", "TCON_TOP "]:
             self.in_table_header = False
             print("], [['#', {!r}, ".format(text))
             self.h4 = text # TODO: print it somehow
@@ -608,6 +664,16 @@ class State(object):
           print("{!r}, ".format(text))
       elif attrib["meaning"] == "table-cell":
         if self.table_left is not None and abs(self.table_left -  int(attrib["left"])) <= 1:
+            if model == "T113-S3":
+               if text == "CCU_CLK_MODE_REG ":
+                 print("'#', 'CSIC_CCU ',") 
+               elif text == "CSIC_TOP_EN_REG ":
+                 print("], ['#', 'CSIC_TOP ',")
+               elif text == "PRS_EN_REG ":
+                 print("], ['#', 'CSIC_PARSER0 ',")
+               elif text == "CSIC_DMA_EN_REG ":
+                 print("], ['#', 'CSIC_DMA0 ',], ['#', 'CSIC_DMA1 ',")
+                 #print("], ['#', 'CSIC_DMA0 ',")      
             print("], [") # next row  
         if text.strip().startswith("Register Name: "):
           rname = text.strip().replace("Register Name: ", "")
@@ -625,6 +691,8 @@ class State(object):
               self.in_module = "TCON0"
             elif text.strip() == "TCON1":
               self.in_module = "TCON1"
+            elif text.strip() == "CSIC_CCU":
+               self.in_module = "CSIC"  
             if text.replace("  ", " ").strip() == "0x0040+N*0x20 IRQ Enable For User N(N=0,1)":
               print("{!r} ,".format("0x0040+N*0x20"))
               text = "IRQ Enable For User N(N=0,1)"
@@ -659,9 +727,9 @@ class State(object):
                text += "(n=0~3)(m=0~3) "
             elif text == "(n=0~3)(m=0~3) ":
                return
-            elif model in ["H6", "H616"]:
-                if text.strip().startswith("0x0") and len(text.strip().split(" ")) == 2 and len(text.strip().split(" ")[0]) == 6 and len(text.strip().split(" ")[1]) == 4:
+            elif text.strip().startswith("0x0") and len(text.strip().split(" ")) == 2 and len(text.strip().split(" ")[0]) == 6 and len(text.strip().split(" ")[1]) == 4:
                   text = "".join(text.split(" ")) #something like 0x0501 0000
+            elif model in ["H6", "H616"]:
                 if model == "H6":
                   if attrib["left"] == str(self.table_left) and len(text.split()) > 1 and text.split()[1].startswith("0x") and len(text.split()[1]) == 6:
                   #if reg name is long it sometimes joined with offset
@@ -688,6 +756,16 @@ class State(object):
                     text = text[:s + len("Channel_")] + "N" + text[s + len("Channel_") + 1:]  
                elif text == "TCON0_CPU_WR_REG ":
                   text = "TCON0_CPU_WRITE_REG "                          
+            elif model == "T113-S3":
+              if int(attrib["left"]) == self.table_left and len(text.split("  ")) == 2 and text.split("  ")[1].startswith("0x0"):
+                 print("{!r},".format(text.split("  ")[0] + ' ')) #something like REGISTER_NAME 0x000 in one cell
+                 text = text.split("  ")[1]
+              elif int(attrib["left"]) == self.table_column_lefts[-2] and len(text.split("  ")) == 2 and text.split("  ")[0].startswith("0x0") and \
+                (text.split("  ")[1].startswith("DMAC ") or \
+                 text.split("  ")[1].startswith("Spinlock ") or \
+                 text.split("  ")[1].startswith("TV CEU")):
+                 print("{!r},".format(text.split("  ")[0] + ' ')) #0x0100 + N*0x0040  DMAC Channel Enable Register N (N = 0 to 15) '
+                 text = text.split("  ")[1]                 
           elif self.in_table in ["AC_ADC_DAP_OPT", "AC_DAPOPT"]:
             text = text.replace("setting(include", "setting (include")  
           elif self.in_table == "HMIC_CTRL":
@@ -740,7 +818,30 @@ class State(object):
                   text = "15:0 "                                                             
           elif self.in_table == "USBSTS" and text.endswith("(USBERRINT) ") or text.endswith("(USBINT) "):
              text = text.replace("(USBINT) ","").replace("(USBERRINT) ","")    
-          print("{!r}, ".format(text))
+          if self.in_table == "USB_CTRL" and text.find("us of the resume-K to SE0 transition") != -1:
+             print("{!r}".format("RESUME_K_STRATEGY "))  
+          if model == "T113-S3":
+            if text.startswith("0x77777777  LOCKID"):
+              print ("{!r}, ".format(text.strip().split("  ")[0] + ' ')) #T113-S3 sometimes default cell is merged with description cell
+              text = text.strip().split("  ")[1] + ' '
+            elif int(attrib["left"]) == self.table_left and len(text.strip().split("  ")) > 2 and text.strip().split("  ")[1] in ["R/W", "R", "/"] and text.strip().split("  ")[2] in ["R/W", "R", "/"]:
+              print ("{!r}, \r{!r},".format(text.strip().split("  ")[0] + ' ', text.strip().split("  ")[1] + ' ')) #T113-S3 sometimes two access cell is merged with default cell
+              text = text.strip().split("  ")[2] + ' '                  
+            elif int(attrib["left"]) == self.table_left and len(text.strip().split("  ")) > 1 and text.strip().split("  ")[1] in ["R/W", "R", "RO", "/"]:
+              print ("{!r}, ".format(text.strip().split("  ")[0] + ' ')) #T113-S3 sometimes access cell is merged with bitrange cell
+              text = text.strip().split("  ")[1] + ' ' 
+            elif int(attrib["left"]) > self.table_left and len(text.strip().split("  ")) > 1 and text.strip().split("  ")[0] in ["R/W", "R", "/"] and text.strip().split("  ")[1].startswith("0x0"):
+              print ("{!r}, ".format(text.strip().split("  ")[0] + ' ')) #T113-S3 sometimes access cell is merged with default cell
+              text = text.strip().split("  ")[1] + ' ' 
+            elif int(attrib["left"]) > self.table_left and len(text.strip().split("  ")) > 2 and text.strip().split("  ")[0] in ["R/W", "R", "/"] and text.strip().split("  ")[2].startswith("0x0"):
+              print ("{!r}, \r{!r},".format(text.strip().split("  ")[0] + ' ', text.strip().split("  ")[1] + ' ')) #T113-S3 sometimes two access cell is merged with default cell
+              text = text.strip().split("  ")[2] + ' '              
+            elif self.in_table == "SPI_NDMA_MODE_CTL" and text.strip() == "0x11":
+               text = "0x3 "
+            elif self.in_table == "GP_CTRL" and text == "31:24  R/ W ":
+              print("'31:24 ',")
+              text = "R/W "                 
+          print("{!r}, ".format(text))   
       elif attrib["meaning"] == "h4" and self.in_table and not self.in_table_header and len(self.table_columns) >= 3 and self.in_column_P(int(attrib['left']), len(self.table_columns) - 1):
         # This can be a repeated table column header--in which case we don't care--or a bolded field name--which we very much want. Distinguish those.
         words = text.split()
@@ -806,7 +907,7 @@ def traverse(state, root, indent = 0, fontspecs = []): # fontspecs: [(id, node w
          #return
       #print("STILL OK", node.text, file=sys.stderr)
       top = int(attrib["top"])
-      attrib = dict([(k,v) for k, v in attrib.items() if k not in ["top", "width", "height"]])
+      attrib = dict([(k,v) for k, v in attrib.items() if k not in ["width", "height"]])
       #x = list(attrib.keys())
       #assert x == ["font"] or x == []
       if node.text is None or set(xnode.tag for xnode in node.iterchildren() if xnode.tag == "a"): # for example if there are <a ...>

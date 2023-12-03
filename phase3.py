@@ -498,7 +498,7 @@ def create_register(table_definition, name, addressOffset, register_description=
             "RC": "clear",
             "RC/W": "clear",
     }.get(access_raw.replace(" ", "").strip())
-    field.append(text_element("description", description))
+    field.append(text_element("description", description.strip().replace("  ", " ")))
     field.append(text_element("bitRange", "[{}:{}]".format(max_bit, min_bit)))
     if access:
       field.append(text_element("access", access))
@@ -539,7 +539,7 @@ def create_register(table_definition, name, addressOffset, register_description=
               else:
                  warning("Could not interpret enumeratedValue {!r}: {!r} in field {!r} in register {!r} (num_bits = {!r})".format(n, meaning, name, register_name, num_bits))
                  continue
-          enumeratedValue = create_enumeratedValue(variant_name, n, meaning or n)
+          enumeratedValue = create_enumeratedValue(variant_name, n, meaning.strip().replace("  ", " ") or n)
           enumeratedValues.append(enumeratedValue)
         if len(enumeratedValues) > 0:
           prefixes = [split_at_is(v.find("./name").text)[0] for v in enumeratedValues]
@@ -644,8 +644,6 @@ def field_name_from_description(description, field_word_count):
         matched_field_name_good = False
         guessed = False
         if description:
-           if description.startswith("1: within 2us of the resume-K to SE0 transition"):
-              description = "RESUME_K_STRATEGY " + description
            description = description.replace("_ ", "_").replace("  ", " ").replace("(OPTIONAL)","").replace("Setting(include", "Setting (include").replace("(USBERRINT)","").replace("(USBINT)","").replace("BM_n(n=0~31)", "BM").replace("CHANNEL_DATA_INV[bit9:0 ]","CHANNEL_DATA_INV")
            #if description.find("DRQ_EN") != -1:
            #  import pdb
@@ -950,6 +948,11 @@ def parse_Register(rspec, field_word_count = 1):
               field_names = ['DMA_TRANSFER_STATUS_EN', 'OHCI_COUNT_SEL', 'SIMULATION_MODE', 'EHCI_HS_FORCE', 'RESUME_K_STRATEGY', 'PP2VBUS', 'AHB_INCR16_EN', 'AHB_INCR8_EN', 'AHB_INCR4_EN', 'AHB_INCRX_ALIGN_EN', 'RC16M_CLK_EN', 'ULPI_BYPASS_EN'] 
           elif register_name == "GENER_CTRL_REG1":
               field_names = ['AXI_TO_MBUS_CLOCK_GATING_DIS','AXI_TO_MBUS_CLOCK_GATING_EN']
+      elif __model == "T113-S3":
+         if register_name == "RTC_SPI_CLK_CTRL_REG":
+            field_names = ["SPI_CLOCK_GATING_EN", "SPI_CLOCK_DIVIDER"]
+         elif register_name == "USB_CTRL":
+              field_names = ['DMA_TRANSFER_STATUS_EN', 'OHCI_COUNT_SEL', 'RESUME_K_STRATEGY', 'PP2VBUS', 'AHB_INCR16_EN', 'AHB_INCR8_EN', 'AHB_INCR4_EN', 'AHB_INCRX_ALIGN_EN', 'ULPI_BYPASS_EN']  
       else:
        seen = set()
        for i, name in enumerate(field_names):
@@ -1252,7 +1255,7 @@ for module in root_dnode.children:
       for row in container.rows:
         if len(row) >= ncolumns:
           rname, rdescr = row[0].strip(), row[ncolumns - 1].strip()
-          descriptions[rname] = rdescr
+          descriptions[rname] = rdescr.strip().replace("  ", " ")
     summary, container = parse_Summary(container, module)
 
     # Note: Possible key: "Analog domain Register", which is not an extra module.
